@@ -1,6 +1,6 @@
 # Messaging App
 
-A full-stack messaging application built with .NET 9 backend and React Native/Expo frontend. Send and receive messages in real-time with multi-platform support for Android, iOS, and Web.
+A full-stack messaging application, THAT IS VERY MUCH INCOMPLETE, built with .NET 9 backend and React Native/Expo frontend. Send and receive messages in real-time with multi-platform support for Android, iOS, and Web.
 
 ## Project Structure
 

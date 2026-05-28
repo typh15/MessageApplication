@@ -14,21 +14,36 @@ type MessageBoxProps = {
 };
 
 export function MessageBox({ sender, message, timestamp, isSentByCurrentUser }: MessageBoxProps) {
+    
+        
+    const date = new Date(timestamp);
+    const formattedDate = new Intl.DateTimeFormat('en-US').format(date);
+    const formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formattedDateTime = `${formattedTime} -   ${formattedDate}`;
+    
     return (
         <View style={[styles.messageContainer, isSentByCurrentUser ? styles.sentMessage : styles.receivedMessage]}>
-            <ThemedText style={styles.sender}>{sender}</ThemedText>
+            <View style={styles.messageHeader}>
+                <ThemedText style={styles.sender}>{sender}</ThemedText>
+                <ThemedText style={styles.sender}>{'                      '}</ThemedText>
+                <ThemedText style={styles.timestamp}>{formattedDateTime}</ThemedText>
+            </View>
             <ThemedText style={styles.message}>{message}</ThemedText>
-            <ThemedText style={styles.timestamp}>{timestamp}</ThemedText>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    messageContainer: {
-        maxWidth: '80%',            
+    messageContainer: {           
         padding: Spacing.two,
 
     },
+    messageHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: Spacing.half,
+    },
+    
     sentMessage: {
         alignSelf: 'flex-end',                                                                          
         backgroundColor: '#2E3135',
@@ -42,6 +57,7 @@ const styles = StyleSheet.create({
     sender: {   
         fontWeight: 'bold',
         marginBottom: Spacing.half,
+        textAlign: 'left',
     },
     message: {
         marginBottom: Spacing.half, 
@@ -50,5 +66,6 @@ const styles = StyleSheet.create({
         fontSize: 12,   
         color: '#B0B4BA',
         alignSelf: 'flex-end',
+        textAlign: 'right',
     },
 });

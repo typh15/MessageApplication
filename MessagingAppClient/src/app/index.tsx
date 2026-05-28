@@ -1,61 +1,49 @@
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Platform, Pressable, Image, ScrollView, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
+
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+
 import { MessageBox } from '@/components/message_box';
+import { SendMessageButton } from '@/components/sendmessage-button';
+import messageData from '../../assets/data/messages.json';
+import {fetchMessages} from '../ApiHandler';
+import Message_Repo from '../components/Message_Repo';
+import Message_Class from '../components/Message_Class';
+
+import * as APIHandler from '../ApiHandler';
 
 
 
-const serverUrl = 'http://100.90.53.59:5121';
-const connectionNodeName = 'chat-hub';
-const defaultNodeName = 'chat-messages';
 
-
-
-function sendMessage(text:string) {
-    console.log("Sending message:", text);
-    fetch(`${serverUrl}/${defaultNodeName}`, {
-        method: 'POST',
-        headers: {
-            
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({id: 0, fromusername: 'current_user', tousername: 'recipient_user', timestamp: 0, content: text}),
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-    })
-    .then(data => {
-        console.log('Message sent successfully:', data);
-    })
-    .catch((error) => {
-        console.error('Error sending message:', error);
-    });
-    // Here you would typically send the message to your backend or update your state
-}
 
 export default function HomeScreen() {
+    const messageRepoRef = useRef(new Message_Repo());
     const [text, setText] = useState('');
-    const [messages, setMessages] = useState<Array<{id: number, fromusername: string, tousername: string, timestamp: number, content: string}>>([]);
-    useEffect(() => {}, [messages]);
-    
+    const [messageRepo, setMessageRepo] = useState<Message_Class[]>([]);
+
+    useEffect(() => {}, []);
+
+    async function handleSendMessage(text: string) {
+        const savedMessage = await APIHandler.sendMessage(text);
+
+        messageRepoRef.current.addMessage(savedMessage);
+
+        setMessageRepo(messageRepoRef.current.getMessages());
+        console.log("Number of messages in repo:", messageRepoRef.current.getMessages().length);
+    };
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
 
         <ThemedView type="backgroundElement" style={styles.stepContainer}>
             
-
                 <TextInput
                     style={styles.MessageInput}
                     value={text}
@@ -67,21 +55,20 @@ export default function HomeScreen() {
                 />
                 
         </ThemedView>
-        <ThemedView type="backgroundSelected" style={styles.sendContainer}>
-        <Pressable onPress={() => sendMessage(text)}>
-            <ThemedView style={{alignItems: 'center', padding: Spacing.two, backgroundColor: '#2E3135', borderRadius: Spacing.two, flexDirection: 'row', gap: Spacing.two}}>
-            <ThemedText>Send</ThemedText>
-            
-            <Image
-                source={require("../../assets/images/SendButton.png")}
-                style={{
-                    width: 28,
-                    height: 28,
-                }}
-            />
-            </ThemedView>
-        </Pressable>
-        </ThemedView>
+
+        <SendMessageButton text={text} onSendMessage={handleSendMessage} />
+
+        <ScrollView style={{marginTop: Spacing.two }} contentContainerStyle={{gap: Spacing.two}}>
+            {messageRepo.map((message, index) => (
+                <MessageBox
+                    key={index}
+                    sender={message.fromusername}
+                    message={message.content}
+                    timestamp={message.timestamp}
+                    isSentByCurrentUser={message.fromusername === 'current_user'}
+                />
+            ))}
+        </ScrollView>
 
       </SafeAreaView>
     </ThemedView>

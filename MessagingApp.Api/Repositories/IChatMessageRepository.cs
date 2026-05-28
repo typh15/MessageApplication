@@ -5,5 +5,6 @@ public interface IChatMessageRepository
     Task AddChatMessageAsync(ChatMessage chatMessage);
     Task<bool> UpdateChatMessageAsync(ChatMessage chatMessage);
     Task<bool> DeleteChatMessageAsync(int id);
+    // helpers
     int GetNextId();
 }

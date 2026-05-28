@@ -4,6 +4,11 @@ class InMemoryRepository : IChatMessageRepository
     [
     ];
 
+    public int GetNextId()
+    {
+        return chatMessages.Count > 0 ? chatMessages.Max(a => a.Id) + 1 : 1;
+    }
+
     public Task<List<ChatMessage>> GetChatMessagesAsync()
     {
         return Task.FromResult(chatMessages.ToList());
@@ -17,12 +22,12 @@ class InMemoryRepository : IChatMessageRepository
 
     public Task AddChatMessageAsync(ChatMessage chatMessage)
     {
-        var id = chatMessages.Count > 0 ? chatMessages.Max(a => a.Id) + 1 : 1;
         var NewChatMessage = new ChatMessage(
-            id,
+            chatMessage.Id,
             chatMessage.FromUserName,
             chatMessage.ToUserName,
-            chatMessage.Timestamp,
+            chatMessage.ClientTimestamp,
+            chatMessage.ServerTimestamp,
             chatMessage.Content
         );
         chatMessages.Add(NewChatMessage);
@@ -36,7 +41,8 @@ class InMemoryRepository : IChatMessageRepository
         {
             existing.FromUserName = chatMessage.FromUserName;
             existing.ToUserName = chatMessage.ToUserName;
-            existing.Timestamp = chatMessage.Timestamp;
+            existing.ClientTimestamp = chatMessage.ClientTimestamp;
+            existing.ServerTimestamp = chatMessage.ServerTimestamp;
             existing.Content = chatMessage.Content;
             return Task.FromResult(true);
         }

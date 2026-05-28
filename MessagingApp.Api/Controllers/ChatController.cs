@@ -26,11 +26,13 @@ public class ChatController : ControllerBase
     [HttpPost("/chat-messages")]
     public async Task<IActionResult> AddChatMessageAsync([FromBody] CreateChatMessageModelRequest request)
     {
+        var id = repository.GetNextId();
         var chatMessageRequest = new ChatMessage(
-            0,// Id will be set in the repository
+            id,
             request.FromUserName,
             request.ToUserName,
-            request.Timestamp,
+            request.LocalTimestamp,
+            DateTime.UtcNow,
             request.Content
         );
 
@@ -45,7 +47,8 @@ public class ChatController : ControllerBase
             request.Id,
             request.FromUserName,
             request.ToUserName,
-            request.Timestamp,
+            request.LocalTimestamp,
+            DateTime.UtcNow,
             request.Content
         );
         

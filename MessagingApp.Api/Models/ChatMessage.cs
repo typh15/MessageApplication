@@ -3,15 +3,19 @@ public class ChatMessage
     public int Id { get; set; }
     public string FromUserName { get; set; }
     public string ToUserName { get; set; }
-    public int Timestamp { get; set; }
+    public DateTime ClientTimestamp { get; set; }
+    public DateTime ServerTimestamp { get; set; }
     public string Content { get; set; }
 
-    public ChatMessage(int id, string fromUserName, string toUserName, int timestamp, string content)
+    public ChatMessage(int id, string fromUserName, 
+    string toUserName, DateTime clientTimestamp, 
+    DateTime serverTimestamp, string content)
     {
         Id = id;
         FromUserName = fromUserName;
         ToUserName = toUserName;
-        Timestamp = timestamp;
+        ClientTimestamp = clientTimestamp;
+        ServerTimestamp = serverTimestamp;
         Content = content;
     }
 }

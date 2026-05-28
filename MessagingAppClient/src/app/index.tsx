@@ -14,6 +14,19 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
 function sendMessage(text:string) {
     console.log("Sending message:", text);
+    fetch('http://100.90.53.59:5121/chat-messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({id: 0, fromusername: 'current_user', tousername: 'recipient_user', timestamp: 0, content: text}),
+    })
+    .then(data => {
+        console.log('Message sent successfully:', data);
+    })
+    .catch((error) => {
+        console.error('Error sending message:', error);
+    });
     // Here you would typically send the message to your backend or update your state
 }
 

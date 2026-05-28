@@ -12,60 +12,87 @@ type MessageBoxProps = {
     timestamp: string;
     isSentByCurrentUser: boolean;
 };
+export function MessageBox({
+  sender,
+  message,
+  timestamp,
+  isSentByCurrentUser,
+}: MessageBoxProps) {
+  const date = new Date(timestamp);
+  const formattedDate = new Intl.DateTimeFormat("en-US").format(date);
+  const formattedTime = date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
-export function MessageBox({ sender, message, timestamp, isSentByCurrentUser }: MessageBoxProps) {
-    
-        
-    const date = new Date(timestamp);
-    const formattedDate = new Intl.DateTimeFormat('en-US').format(date);
-    const formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const formattedDateTime = `${formattedTime} -   ${formattedDate}`;
-    
-    return (
-        <View style={[styles.messageContainer, isSentByCurrentUser ? styles.sentMessage : styles.receivedMessage]}>
-            <View style={styles.messageHeader}>
-                <ThemedText style={styles.sender}>{sender}</ThemedText>
-                <ThemedText style={styles.sender}>{'                      '}</ThemedText>
-                <ThemedText style={styles.timestamp}>{formattedDateTime}</ThemedText>
-            </View>
-            <ThemedText style={styles.message}>{message}</ThemedText>
-        </View>
-    );
+  const formattedDateTime = `${formattedTime} · ${formattedDate}`;
+
+  return (
+    <View
+      style={[
+        styles.messageContainer,
+        isSentByCurrentUser ? styles.sentMessage : styles.receivedMessage,
+      ]}
+    >
+      <View style={styles.messageHeader}>
+        <ThemedText style={styles.sender} numberOfLines={1}>
+          {sender}
+        </ThemedText>
+
+        <ThemedText style={styles.timestamp} numberOfLines={1}>
+          {formattedDateTime}
+        </ThemedText>
+      </View>
+
+      <ThemedText style={styles.message}>
+        {message}
+      </ThemedText>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    messageContainer: {           
-        padding: Spacing.two,
+  messageContainer: {
+    maxWidth: "84%",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 18,
+  },
 
-    },
-    messageHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: Spacing.half,
-    },
-    
-    sentMessage: {
-        alignSelf: 'flex-end',                                                                          
-        backgroundColor: '#2E3135',
-        borderRadius: Spacing.two,  
-    },
-    receivedMessage: {
-        alignSelf: 'flex-start',    
-        backgroundColor: '#212225',
-        borderRadius: Spacing.two,
-    },
-    sender: {   
-        fontWeight: 'bold',
-        marginBottom: Spacing.half,
-        textAlign: 'left',
-    },
-    message: {
-        marginBottom: Spacing.half, 
-    },
-    timestamp: {
-        fontSize: 12,   
-        color: '#B0B4BA',
-        alignSelf: 'flex-end',
-        textAlign: 'right',
-    },
+  sentMessage: {
+    alignSelf: "flex-end",
+    backgroundColor: "#3540A8",
+    borderBottomRightRadius: 6,
+  },
+
+  receivedMessage: {
+    alignSelf: "flex-start",
+    backgroundColor: "#2E3135",
+    borderBottomLeftRadius: 6,
+  },
+
+  messageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    marginBottom: Spacing.half,
+  },
+
+  sender: {
+    flexShrink: 1,
+    fontWeight: "700",
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+
+  timestamp: {
+    fontSize: 11,
+    color: "#B0B4BA",
+  },
+
+  message: {
+    fontSize: 17,
+    lineHeight: 22,
+    color: "#FFFFFF",
+  },
 });

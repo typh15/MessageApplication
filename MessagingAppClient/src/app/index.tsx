@@ -11,7 +11,6 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
 import { MessageBox } from '@/components/message_box';
 import { SendMessageButton } from '@/components/sendmessage-button';
-import messageData from '../../assets/data/messages.json';
 import {fetchMessages} from '../ApiHandler';
 import Message_Repo from '../components/Message_Repo';
 import Message_Class from '../components/Message_Class';
@@ -19,15 +18,20 @@ import Message_Class from '../components/Message_Class';
 import * as APIHandler from '../ApiHandler';
 
 
-
+const update_interval = 1; // Update every ___ seconds
 
 
 export default function HomeScreen() {
     const messageRepoRef = useRef(new Message_Repo());
     const [text, setText] = useState('');
     const [messageRepo, setMessageRepo] = useState<Message_Class[]>([]);
+    const scrollViewRef = useRef<ScrollView>(null);
 
     useEffect(() => {}, []);
+
+    useEffect(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, [messageRepo]);
 
     async function handleSendMessage(text: string) {
         const savedMessage = await APIHandler.sendMessage(text);
@@ -35,96 +39,107 @@ export default function HomeScreen() {
         messageRepoRef.current.addMessage(savedMessage);
 
         setMessageRepo(messageRepoRef.current.getMessages());
-        console.log("Number of messages in repo:", messageRepoRef.current.getMessages().length);
+        setText('');
     };
 
-  return (
+    /*
+    useEffect(() => {
+
+        const intervalId = setInterval(() => {
+            APIHandler.fetchMessages();
+        }, update_interval * 1000);
+
+        return () => clearInterval(intervalId);
+    }, [APIHandler.fetchMessages()]);
+        */
+    return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={styles.safeArea}>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-            
-                <TextInput
-                    style={styles.MessageInput}
-                    value={text}
-                    onChangeText={(text:string) => setText(text)}
-                    placeholder="Type a message..."
-                    multiline={true}
-                    textAlign = "left"
-
-                />
-                
-        </ThemedView>
-
-        <SendMessageButton text={text} onSendMessage={handleSendMessage} />
-
-        <ScrollView style={{marginTop: Spacing.two }} contentContainerStyle={{gap: Spacing.two}}>
+        <ScrollView
+            ref={scrollViewRef}
+            style={styles.messageScroll}
+            contentContainerStyle={styles.messageList}
+            onContentSizeChange={() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+            }}
+            >
             {messageRepo.map((message, index) => (
                 <MessageBox
-                    key={index}
-                    sender={message.fromusername}
-                    message={message.content}
-                    timestamp={message.timestamp}
-                    isSentByCurrentUser={message.fromusername === 'current_user'}
+                key={index}
+                sender={message.fromusername}
+                message={message.content}
+                timestamp={message.timestamp}
+                isSentByCurrentUser={message.fromusername === "current_user"}
                 />
             ))}
         </ScrollView>
 
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
+        <ThemedView style={styles.composer}>
+            <TextInput
+            style={styles.messageInput}
+            value={text}
+            onChangeText={setText}
+            placeholder="Type a message..."
+            placeholderTextColor="#8E95A8"
+            multiline
+            />
 
+            <SendMessageButton
+            text={text}
+            onSendMessage={handleSendMessage}
+            />
+        </ThemedView>
+
+        </SafeAreaView>
+    </ThemedView>
+    );
+}
 const styles = StyleSheet.create({
+
+safeArea: {
+  flex: 1,
+  paddingHorizontal: Spacing.four,
+  paddingBottom: Spacing.two,
+  maxWidth: MaxContentWidth,
+  alignSelf: "center",
+  width: "100%",
+},
+
+messageScroll: {
+  flex: 1,
+},
+
+composer: {
+  flexDirection: "row",
+  alignItems: "flex-end",
+  gap: Spacing.two,
+  paddingTop: Spacing.two,
+  paddingBottom: Spacing.one,
+},
+
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: "#000000",
   },
-  safeArea: {
-    flex: 150,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-    top: 100,
+
+
+  messageList: {
+    paddingTop: Spacing.four,
+    paddingBottom: Spacing.two,
+    gap: Spacing.two,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  messageInput: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
-  sendContainer: {
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.one,
-    paddingVertical: Spacing.one,
-    borderRadius: Spacing.one,
-    justifyContent: 'flex-end',
-    marginRight: 'auto',
-    
-  },
-  MessageInput: {
+    minHeight: 48,
+    maxHeight: 120,
     fontSize: 17,
-    textAlign: 'center',
-    backgroundColor: '#262f4b',
-    color: '#ffffff',
-    padding: 8,
-    borderRadius: 4,
+    backgroundColor: "#262f4b",
+    color: "#ffffff",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 24,
+    textAlignVertical: "center",
   },
 });

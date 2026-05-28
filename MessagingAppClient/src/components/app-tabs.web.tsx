@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   innerContainer: {
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.five,
-    borderRadius: Spacing.five,
+    borderRadius: Spacing.three,
     flexDirection: 'row',
     alignItems: 'center',
     flexGrow: 1,

@@ -10,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 builder.Services.AddSingleton<IChatMessageRepository, InMemoryRepository>();
+builder.Services.AddSingleton<IActiveUserRepository, ActiveUserRepository>();
 
 builder.Services.AddCors(options =>
 {

@@ -10,16 +10,30 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MessageBox } from '@/components/message_box';
+
+
+
+const serverUrl = 'http://100.90.53.59:5121';
+const connectionNodeName = 'chat-hub';
+const defaultNodeName = 'chat-messages';
+
 
 
 function sendMessage(text:string) {
     console.log("Sending message:", text);
-    fetch('http://100.90.53.59:5121/chat-messages', {
+    fetch(`${serverUrl}/${defaultNodeName}`, {
         method: 'POST',
         headers: {
+            
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({id: 0, fromusername: 'current_user', tousername: 'recipient_user', timestamp: 0, content: text}),
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
     })
     .then(data => {
         console.log('Message sent successfully:', data);
@@ -32,6 +46,9 @@ function sendMessage(text:string) {
 
 export default function HomeScreen() {
     const [text, setText] = useState('');
+    const [messages, setMessages] = useState<Array<{id: number, fromusername: string, tousername: string, timestamp: number, content: string}>>([]);
+    useEffect(() => {}, [messages]);
+    
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>

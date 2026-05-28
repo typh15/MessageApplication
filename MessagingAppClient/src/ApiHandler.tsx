@@ -1,6 +1,7 @@
 
 
 import Message_Class from '@/components/Message_Class';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const serverUrl = 'http://100.90.53.59:5121';
 const defaultNodeName = 'chat-messages';
@@ -8,8 +9,9 @@ const defaultNodeName = 'chat-messages';
 
 export function sendMessage(text:string) : Message_Class {
     console.log("Sending message:", text);
+    var uniqueid = AsyncStorage.getItem('uniqueid');
     var isodate = new Date(Date.now()).toISOString();
-    var formattedMessage = {fromusername: 'current_user', tousername: 'recipient_user', timestamp: isodate, content: text};
+    var formattedMessage = {fromusername: 'current_user', tousername: 'recipient_user', timestamp: isodate, content: text, uniqueid: uniqueid};
     fetch(`${serverUrl}/${defaultNodeName}`, {
         method: 'POST',
         headers: {
@@ -20,7 +22,15 @@ export function sendMessage(text:string) : Message_Class {
     })
     .then(response => {
         if (!response.ok) {
+            response.text().then(text => console.error('Error response from server:', text));
             throw new Error('Network response was not ok');
+        }
+        else
+        {
+            response.text().then(uniqueid => {
+                console.log('Unique ID from server:', uniqueid);
+                AsyncStorage.setItem('uniqueid', uniqueid);
+            });
         }
     })
     .then(data => {

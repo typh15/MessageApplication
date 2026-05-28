@@ -1,4 +1,4 @@
-@MessagingApp.Api_HostAddress = http://localhost:5121
+@MessagingApp.Api_HostAddress = http://100.90.53.59:5121
 
 GET {{MessagingApp.Api_HostAddress}}/weatherforecast/
 Accept: application/json

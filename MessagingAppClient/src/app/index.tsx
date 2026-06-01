@@ -33,8 +33,8 @@ export default function HomeScreen() {
         scrollViewRef.current?.scrollToEnd({ animated: true });
         }, [messageRepo]);
 
-    async function handleSendMessage(text: string) {
-        const savedMessage = await APIHandler.sendMessage(text);
+    async function handleSendMessage(text: string, from_user: string, to_user: string) {
+        const savedMessage = await APIHandler.sendMessage(text, from_user, to_user);
 
         messageRepoRef.current.addMessage(savedMessage);
 
@@ -87,6 +87,8 @@ export default function HomeScreen() {
 
             <SendMessageButton
             text={text}
+            from_user="current_user"
+            to_user="recipient_user"
             onSendMessage={handleSendMessage}
             />
         </ThemedView>

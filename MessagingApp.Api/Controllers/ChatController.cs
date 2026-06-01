@@ -40,7 +40,9 @@ public class ChatController : ControllerBase
         // Get the users address, cache as an active user and use that to send updates to the client when they come online.
         var fromUserAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        bool isUserActive = await activeUserRepository.IsUserActiveAsync(request.UniqueId);
+        // bool isUserActive = await activeUserRepository.IsUserActiveAsync(request.UniqueId);
+        bool isUserActive = !string.IsNullOrWhiteSpace(request.UniqueId) && 
+                            await activeUserRepository.IsUserActiveAsync(request.UniqueId);
         if (isUserActive)
         {
             // Create chat message
@@ -65,6 +67,10 @@ public class ChatController : ControllerBase
                                 request.UniqueId));
             return Ok();
         }
+
+
+
+
         else // no active user found
         {
             // Does the username exist
@@ -76,14 +82,29 @@ public class ChatController : ControllerBase
             else
             {
                 string uniqueId = Guid.NewGuid().ToString();
-                 // Create chat message
-                // Add new user to active user repo
+
                 await activeUserRepository.AddActiveUserAsync(
-                    new ActiveUser(request.FromUserName, 
-                                   fromUserAddress, 
-                                   DateTime.UtcNow, 
-                                   uniqueId));
-                // Send unique id back to client for future requests
+                    new ActiveUser(
+                        request.FromUserName,
+                        fromUserAddress,
+                        DateTime.UtcNow,
+                        uniqueId
+                    )
+                );
+
+                var id = repository.GetNextId();
+
+                var chatMessageRequest = new ChatMessage(
+                    id,
+                    request.FromUserName,
+                    request.ToUserName,
+                    request.LocalTimestamp,
+                    DateTime.UtcNow,
+                    request.Content
+                );
+
+                await repository.AddChatMessageAsync(chatMessageRequest);
+
                 return Ok(uniqueId);
             }
         }

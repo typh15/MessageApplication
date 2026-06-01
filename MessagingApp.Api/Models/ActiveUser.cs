@@ -3,9 +3,9 @@ public class ActiveUser
     public string UserName { get; set; }
     public string Address { get; set; }
     public DateTime LastActiveTime { get; set; }
-    public string UniqueId { get; set; }
+    public string? UniqueId { get; set; }
 
-    public ActiveUser(string userName, string address, DateTime lastActiveTime, string uniqueId = "")
+    public ActiveUser(string userName, string address, DateTime lastActiveTime, string? uniqueId = "")
     {
         UserName = userName;
         Address = address;

@@ -24,8 +24,8 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+          <TabTrigger name="initialSettings" href="/initialSettings" asChild>
+            <TabButton>Settings</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -55,12 +55,14 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
         <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
+          No Future Studio - Messager
         </ThemedText>
 
         {props.children}
 
-        <ExternalLink href="https://docs.expo.dev" asChild>
+{/* This is an example of how to add an external link in the tab bar. You can remove this if you don't need it. */}
+
+        {/* <ExternalLink href="https://docs.expo.dev" asChild>
           <Pressable style={styles.externalPressable}>
             <ThemedText type="link">Docs</ThemedText>
             <SymbolView
@@ -69,7 +71,7 @@ export function CustomTabList(props: TabListProps) {
               size={12}
             />
           </Pressable>
-        </ExternalLink>
+        </ExternalLink> */}
       </ThemedView>
     </View>
   );

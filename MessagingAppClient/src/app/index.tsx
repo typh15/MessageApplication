@@ -4,16 +4,16 @@ import { useRef, useEffect, useState } from 'react';
 import { Platform, Pressable, Image, ScrollView, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { ThemedText } from '@/components/GenericComponents/themed-text';
+import { ThemedView } from '@/components/GenericComponents/themed-view';
 
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
-import { MessageBox } from '@/components/message_box';
-import { SendMessageButton } from '@/components/sendmessage-button';
+import { MessageBox } from '@/components/ui/message-box';
+import { SendMessageButton } from '@/components/ui/sendmessage-button';
 import {fetchMessages} from '../ApiHandler';
-import Message_Repo from '../components/Message_Repo';
-import Message_Class from '../components/Message_Class';
+import Message_Repo from '../MessageRepository';
+import Message_Class from '../components/Models/Message_Class';
 
 import * as APIHandler from '../ApiHandler';
 

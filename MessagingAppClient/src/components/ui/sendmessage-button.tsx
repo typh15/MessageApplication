@@ -1,23 +1,25 @@
 import { Pressable, Image } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/GenericComponents/themed-view';
+import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { Spacing } from '@/constants/theme';    
-import {sendMessage} from '../ApiHandler';
+import {sendMessage} from '../../ApiHandler';
 
 
 
 type SendButtonProps = {
   text: string;
-  onSendMessage: (messageText: string) => void;
+  from_user: string;
+  to_user: string;
+  onSendMessage: (messageText: string, from_user: string, to_user: string) => void;
 };
-export function SendMessageButton({ text, onSendMessage }: SendButtonProps) {
+export function SendMessageButton({ text, from_user, to_user, onSendMessage }: SendButtonProps) {
   const isDisabled = text.trim().length === 0;
 
   return (
     <Pressable
       onPress={() => {
         if (!isDisabled) {
-          onSendMessage(text);
+          onSendMessage(text, from_user, to_user);
         }
       }}
       disabled={isDisabled}
@@ -33,7 +35,7 @@ export function SendMessageButton({ text, onSendMessage }: SendButtonProps) {
       })}
     >
       <Image
-        source={require("../../assets/images/SendButton.png")}
+        source={require("../../../assets/images/SendButton.png")}
         style={{
           width: 24,
           height: 24,

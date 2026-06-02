@@ -1,6 +1,6 @@
 
 
-import Message_Class from '@/components/Message_Class';
+import Message_Class from '@/components/Models/Message_Class';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const serverUrl = 'http://100.90.53.59:5121';

@@ -9,17 +9,17 @@ import {sendMessage} from '../../ApiHandler';
 type SendButtonProps = {
   text: string;
   from_user: string;
-  to_user: string;
-  onSendMessage: (messageText: string, from_user: string, to_user: string) => void;
+  destination: string;
+  onSendMessage: (messageText: string, from_user: string, destination: string) => void;
 };
-export function SendMessageButton({ text, from_user, to_user, onSendMessage }: SendButtonProps) {
+export function SendMessageButton({ text, from_user, destination, onSendMessage }: SendButtonProps) {
   const isDisabled = text.trim().length === 0;
 
   return (
     <Pressable
       onPress={() => {
         if (!isDisabled) {
-          onSendMessage(text, from_user, to_user);
+          onSendMessage(text, from_user, destination);
         }
       }}
       disabled={isDisabled}

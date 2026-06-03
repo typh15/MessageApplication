@@ -7,13 +7,13 @@ const serverUrl = 'http://100.90.53.59:5121';
 const defaultNodeName = 'chat-messages';
 
 
-export async function sendMessage(text:string, from_user: string, to_user: string) : Promise<Message_Class> {
+export async function sendMessage(text:string, from_user: string, destination: string) : Promise<Message_Class> {
     console.log("Sending message:", text);
 
     var existingUniqueId = await AsyncStorage.getItem('uniqueid');
     console.log("Using Unique ID:", existingUniqueId);
     var isodate = new Date(Date.now()).toISOString();
-    var formattedMessage = {FromUserName: from_user, ToUserName: to_user, LocalTimestamp: isodate, Content: text, UniqueId: existingUniqueId ?? ""};
+    var formattedMessage = {FromUserName: from_user, ToUserName: destination, LocalTimestamp: isodate, Content: text, UniqueId: existingUniqueId ?? ""};
     const response = await fetch(`${serverUrl}/${defaultNodeName}`, {
         method: 'POST',
         headers: {
@@ -37,7 +37,7 @@ export async function sendMessage(text:string, from_user: string, to_user: strin
         await AsyncStorage.setItem('uniqueid', returnedText);
     }
 
-    return new Message_Class(uniqueIdToUse, from_user, to_user, isodate, text);
+    return new Message_Class(uniqueIdToUse, from_user, destination, isodate, text);
     
 }
 

@@ -3,10 +3,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, ActivityIndicator, FlatLis
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as APIHandler from '@/ApiHandler';
 
@@ -18,12 +17,22 @@ export interface MessageBoard {
 }
 
 export default function BoardSelectionScreen() {
-  const [boards, setBoards] = useState<MessageBoard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
-  const [joining, setJoining] = useState(false);
-  const router = useRouter();
+    const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
+    const [joining, setJoining] = useState(false);
+    const [boards, setBoards] = useState<MessageBoard[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState('');
+    const router = useRouter();
+    
+    // Poll for new boards at a fixed interval
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            loadBoards(false);
+        }, 5000);
+
+        return () => clearInterval(intervalId);
+    }, []);
 
 
   const safeAreaInsets = useSafeAreaInsets();
@@ -47,31 +56,34 @@ export default function BoardSelectionScreen() {
   });
 
   useEffect(() => {
-   async function initialize() {
-     APIHandler.createMessageBoard('General Chat', true, false, '' ).then(() => {
-      console.log('Default board created');
-    }).catch(err => {
-      console.error('Failed to create default board:', err);
-    });}
-    
-    initialize();
-    loadBoards();
+   
+    loadBoards(true);
   }, []);
 
-  const loadBoards = async () => {
-    try {
+const loadBoards = async (showFullScreenLoading: boolean = false) => {
+  try {
+    if (showFullScreenLoading) {
       setLoading(true);
-      setError('');
-      const boardsData = await APIHandler.getMessageBoards();
-      setBoards(boardsData);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load boards';
-      setError(errorMessage);
-      console.error('Load boards error:', err);
-    } finally {
-      setLoading(false);
+    } else {
+      setRefreshing(true);
     }
-  };
+
+    setError('');
+
+    const boardsData = await APIHandler.getMessageBoards();
+    setBoards(boardsData);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Failed to load boards';
+    setError(errorMessage);
+    console.error('Load boards error:', err);
+  } finally {
+    if (showFullScreenLoading) {
+      setLoading(false);
+    } else {
+      setRefreshing(false);
+    }
+  }
+};
 
   const handleJoinBoard = async (boardId: number) => {
     try {
@@ -163,7 +175,7 @@ export default function BoardSelectionScreen() {
             <ThemedText style={{ color: '#ff4444' }}>{error}</ThemedText>
             <Pressable
               style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
-              onPress={loadBoards}>
+              onPress={() => loadBoards(true)}>
               <ThemedText style={[styles.buttonText, { fontSize: 14 }]}>Retry</ThemedText>
             </Pressable>
           </ThemedView>

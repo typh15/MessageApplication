@@ -49,6 +49,20 @@ public class ChatController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("/active-users")]
+    public async Task<IActionResult> GetAllActiveUsersAsync()
+    {
+
+        var result = await chatService.GetAllActiveUsersAsync();
+
+        if (result == null)
+        {
+            return BadRequest("No active users found.");
+        }
+
+        return Ok(result);
+    }
+
     [HttpPost("/message-boards")]
     public async Task<IActionResult> CreateMessageBoardAsync(
         [FromBody] CreateMessageBoardRequest request)

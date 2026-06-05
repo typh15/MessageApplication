@@ -35,6 +35,11 @@ public class ChatService : IChatService
         );
     }
 
+    public async Task<List<ActiveUser>> GetAllActiveUsersAsync()
+    {
+        return await activeUserRepository.GetAllActiveUsersAsync();
+    }
+
     public async Task<List<ChatMessage>> GetMessagesForBoardAsync(int boardId)
     {
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
@@ -96,7 +101,7 @@ public class ChatService : IChatService
             return null;
         }
 
-        var activeUsers = await activeUserRepository.GetActiveUsersAsync();
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
         var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
 
         if (activeUser == null)
@@ -161,7 +166,7 @@ public class ChatService : IChatService
             return false;
         }
 
-        var activeUsers = await activeUserRepository.GetActiveUsersAsync();
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
         var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
 
         if (activeUser == null)

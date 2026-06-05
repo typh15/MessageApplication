@@ -159,6 +159,13 @@ export default function ChatScreen() {
                             (loading || !text.trim()) && { opacity: 0.4 }
                         ]}
                     >
+                                    
+                        <SendMessageButton
+                        text={text}
+                        from_user="current_user"
+                        boardId={1}
+                        onSendMessage={handleSendMessage}
+                        />
                         <ThemedText style={styles.sendButtonText}>Send</ThemedText>
                     </Pressable>
                 </ThemedView>

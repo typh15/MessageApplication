@@ -8,7 +8,7 @@ A full-stack messaging application built with .NET 9 backend and React Native/Ex
 MessagingApp/
 ├── MessagingApp.Api/          # .NET 9 Backend API
 │   ├── Controllers/           # API endpoints (ChatController)
-│   ├── Models/               # Data models (ChatMessage, ActiveUser)
+│   ├── Models/               # Data models (Messageboard, ChatMessage, ActiveUser)
 │   ├── Repositories/         # Data access layer
 │   ├── Requests/             # API request models
 │   └── Program.cs            # ASP.NET Core configuration
@@ -32,7 +32,7 @@ MessagingApp/
 
 ## Features
 
-- **Message Boards**: Create public/*(private) message boards with optional *(password protection),    * - these features are in active development 
+- **Message Boards**: Create public*(/private) message boards *(with optional password protection),    * - these features are in active development 
 - **Board Management**: Create, join, and browse multiple message boards
 - **Real-time Messaging**: Send and receive messages with 1-second polling for live updates
 - **User Registration**: Pre-registration flow with persistent username and unique ID storage
@@ -260,7 +260,7 @@ High Priority -
 Mid Priority - 
 - **Encryption**: End-to-end encryption
   
-Lower Prioriry
+Low Prioriry
 - **Admin Panel**: Board moderation and user management tools
 
 ## License

@@ -1,6 +1,6 @@
 # Messaging App
 
-A full-stack messaging application, THAT IS VERY MUCH INCOMPLETE, built with .NET 9 backend and React Native/Expo frontend. Send and receive messages in real-time with multi-platform support for Android, iOS, and Web.
+A full-stack messaging application built with .NET 9 backend and React Native/Expo frontend. Create and join message boards, send and receive messages with real-time polling across Android, iOS, and Web platforms.
 
 ## Project Structure
 
@@ -16,22 +16,31 @@ MessagingApp/
 └── MessagingAppClient/        # React Native/Expo Frontend
     ├── src/
     │   ├── app/              # Pages and routing (Expo Router)
+    │   │   ├── _layout.tsx       # Root layout with Stack navigator
+    │   │   ├── index.tsx         # Root redirect to registration
+    │   │   ├── registration.tsx  # User registration/login page
+    │   │   ├── boards.tsx        # Message board selection and browsing
+    │   │   ├── new-board.tsx     # Create new message board
+    │   │   └── chat.tsx          # Chat interface for selected board
     │   ├── components/       # Reusable React components
     │   ├── constants/        # Theme and configuration
     │   ├── hooks/            # Custom React hooks
-    │   └── ApiHandler.tsx    # API communication
+    │   ├── ApiHandler.tsx    # API communication layer
+    │   └── MessageRepository.tsx  # Local message storage
     └── assets/               # Images and app assets
 ```
 
 ## Features
 
-- **Real-time Messaging**: Send and receive chat messages
-- **User Authentication**: Unique ID-based authentication with username registration
-- **Active User Tracking**: Track online users and their last active time
-- **Multi-Platform**: Works on Android, iOS, and Web
+- **Message Boards**: Create public/private message boards with optional password protection
+- **Board Management**: Create, join, and browse multiple message boards
+- **Real-time Messaging**: Send and receive messages with 1-second polling for live updates
+- **User Registration**: Pre-registration flow with persistent username and unique ID storage
+- **Active User Tracking**: Track online users and their sessions
+- **Multi-Platform**: Works on Android (Expo Go), iOS (Expo Go), and Web
 - **Responsive UI**: Dark-themed interface with smooth animations
-- **Message History**: Retrieve chat history with timestamp tracking
-- **CRUD Operations**: Create, read, update, and delete chat messages
+- **Message History**: Retrieve chat history with server timestamps
+- **Session Persistence**: Username and unique ID persist across app restarts via AsyncStorage
 
 ## Tech Stack
 
@@ -103,44 +112,73 @@ Convenient batch files are included for quick builds:
 
 ## API Endpoints
 
+### Active Users
+- **POST** `/active-users` - Register a new active user
+  - Request: `{ "userName": "string" }`
+  - Response: `{ "uniqueId": "string", "userName": "string" }`
+
+### Message Boards
+- **GET** `/message-boards` - List all available message boards
+- **GET** `/message-boards/{boardId}` - Get a specific message board
+- **POST** `/message-boards` - Create a new message board
+  - Request: `{ "boardName": "string", "visibleToPublic": bool, "passwordProtected": bool, "password": "string" }`
+  - Response: `MessageBoard object`
+- **POST** `/message-boards/{boardId}/join` - Join a message board
+  - Request: `{ "uniqueId": "string" }`
+
 ### Chat Messages
-- **GET** `/chat-messages` - Retrieve all chat messages
-- **GET** `/chat-messages/{id}` - Get a specific chat message
-- **POST** `/chat-messages` - Send a new message (requires authentication)
-- **PUT** `/chat-messages/{id}` - Update an existing message
+- **GET** `/message-boards/{boardId}/messages` - Retrieve all messages for a board
+- **POST** `/message-boards/{boardId}/messages` - Send a message to a board
+  - Request: `{ "fromUserName": "string", "content": "string", "uniqueId": "string", "localTimestamp": "ISO8601", "toUserName": "string" }`
+  - Response: `{ "message": ChatMessage object, "uniqueId": "string" }`
+- **DELETE** `/message-boards/{boardId}/messages/{messageId}` - Delete a message
 
 ### Authentication Flow
-1. Client submits username and generates/sends unique ID
-2. API validates and registers user as active
-3. API returns unique ID for future requests
-4. Client stores ID in AsyncStorage for session persistence
+1. User enters username on registration screen
+2. Client calls `POST /active-users` to register user and obtain `uniqueId`
+3. Client stores `uniqueId` and `username` in AsyncStorage for persistence
+4. Client can then join boards and send messages using the persisted `uniqueId`
+5. Login page allows returning users to access their account using saved `uniqueId`
 
 ## Usage
 
-### Sending a Message
+### First-Time User (Registration)
 1. Launch the app
-2. Enter your username (first-time users are automatically registered)
-3. Type your message in the input box
-4. Tap the send button
-5. Messages appear in real-time in the chat interface
+2. Enter your desired username on the registration screen
+3. Tap "Register" to create your account (generates and stores unique ID)
+4. You're automatically navigated to the boards selection screen
+
+### Returning User (Login)
+1. Launch the app (starts at registration screen)
+2. Tap "Login" to access your account using your saved unique ID
+3. Navigated to boards selection screen
+
+### Using the App
+1. **Browse Boards**: View available public message boards on the boards screen
+2. **Create Board**: Tap "New Board" to create a new board (optionally password-protected)
+3. **Join Board**: Tap "Join" on any board to enter the chat
+4. **Send Messages**: Type a message and tap Send to post it to the board
+5. **Real-Time Updates**: New messages are automatically loaded every second via polling
 
 ### Features in Detail
 - **Message Timestamps**: Each message displays local and server timestamps
-- **Current User Highlighting**: Messages you send are visually distinguished
-- **Auto-scroll**: Chat view automatically scrolls to the latest message
-- **Persistent Sessions**: Your username and session ID persist across app restarts
+- **User Attribution**: Messages show the sender's username
+- **Auto-Scroll**: Chat view automatically scrolls to the latest message
+- **Persistent Sessions**: Your username and unique ID persist across app restarts
 
 ## Project Configuration
 
 ### API Configuration
 - **appsettings.json**: Production settings
-- **appsettings.Development.json**: Development settings
-- **CORS**: Enabled for all origins in development
+- **appsettings.Development.json**: Development settings with CORS enabled for all origins
+- **Default Port**: API runs on `https://localhost:7036`
 
 ### Client Configuration
+- **Server URL**: Currently hardcoded in `ApiHandler.tsx` (TODO: move to environment config)
 - **TypeScript**: Strict null checking enabled
 - **Theme**: Dark mode with custom color scheme (see `src/constants/theme.ts`)
 - **Router**: File-based routing with Expo Router
+- **Storage**: AsyncStorage for persistent user session data (username, uniqueId)
 
 ## Development
 
@@ -174,29 +212,52 @@ npm install <package-name>
 
 ## Architecture Notes
 
-### Repository Pattern
-The backend uses the Repository Pattern for data access:
-- `IChatMessageRepository`: Defines chat message operations
-- `IActiveUserRepository`: Manages active user sessions
-- In-memory implementations for development/testing
+### Backend (C#/.NET 9)
+**Repository Pattern** for data persistence:
+- `IChatService`: Main service interface for all chat operations
+- `IMessageBoardRepository`: Board CRUD and retrieval operations
+- `IActiveUserRepository`: Active user session management
+- In-memory implementations for development
 
-### State Management
-The frontend uses React Hooks and local state:
-- `messageRepo`: Stores chat messages
-- `Message_Repo`: Custom repository class for message management
-- `useRef`: Used for non-re-rendering state (scroll references)
+**Key Models**:
+- `ChatMessage`: Represents a single message with timestamps and user info
+- `MessageBoard`: Represents a message board with visibility and password settings
+- `ActiveUser`: Represents an online user with unique ID
+
+### Frontend (React Native/TypeScript)
+**Navigation & Routing**:
+- Expo Router with file-based routing in `src/app/`
+- Stack navigator with `_layout.tsx` managing the route stack
+- Routes: registration → boards → chat/new-board
+
+**State Management**:
+- React Hooks (`useState`, `useEffect`) for component state
+- `AsyncStorage` for persistent user data (username, uniqueId)
+- Local message repository (`Message_Repo`) for chat state
+- `ApiHandler.tsx` as centralized API communication layer
+
+**Message Polling**:
+- `useEffect` with `setInterval` polls `fetchMessages()` every second
+- Automatic cleanup with `clearInterval` on component unmount
+- Updates local message state and scrolls to latest message
+
+**Data Models**:
+- `Message_Class`: Client-side chat message representation
+- `MessageBoard`: Board metadata with visibility/password flags
 
 ## Future Enhancements
 
-- Real-time synchronization (WebSockets/SignalR)
-- Database integration (replace in-memory storage)
-- End-to-end encryption
-- Message reactions and reactions
-- User profiles and avatars
-- Message search functionality
-- Notification system
-- Direct messaging threads
-- Message deletion and editing UI
+- **Database Integration**: Replace in-memory storage with persistent database (SQL Server, PostgreSQL)
+- **User Profiles**: Add user avatars, profiles, and bio information
+- **Direct Messaging**: One-on-one private message threads
+- **Message Reactions**: Emoji reactions and message threading
+- **Advanced Search**: Search messages by content, user, or date
+- **Message Editing/Deletion**: Edit sent messages and delete with soft-delete support
+- **Notifications**: Push notifications for new messages and board activity
+- **Rate Limiting**: API request rate limiting to prevent abuse
+- **Admin Panel**: Board moderation and user management tools
+- **Authentication**: JWT tokens or OAuth integration for enhanced security
+- **Encryption**: End-to-end encryption for private messages
 
 ## License
 

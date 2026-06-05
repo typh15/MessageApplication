@@ -12,6 +12,6 @@ public class ActiveUser
         Address = address;
         LastActiveTime = lastActiveTime;
         UniqueId = uniqueId;
-        MessageBoardIds = [];
+        MessageBoardIds = new List<int>();
     }
 }

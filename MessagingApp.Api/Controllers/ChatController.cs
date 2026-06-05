@@ -3,131 +3,98 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class ChatController : ControllerBase
 {
-    private readonly IChatMessageRepository repository;
+    private readonly IChatService chatService;
 
-    private readonly IActiveUserRepository activeUserRepository;
-
-    public ChatController(IChatMessageRepository repository, IActiveUserRepository activeUserRepository)
+    public ChatController(IChatService chatService)
     {
-        this.repository = repository;
-        this.activeUserRepository = activeUserRepository;
+        this.chatService = chatService;
     }
 
-    [HttpGet("/chat-messages")]
-    public async Task<List<ChatMessage>> GetChatMessages()
+    [HttpGet("/message-boards")]
+    public async Task<List<MessageBoard>> GetMessageBoardsAsync()
     {
-        return await repository.GetChatMessagesAsync();
+        return await chatService.GetMessageBoardsAsync();
     }
 
-    [HttpGet("/chat-messages/{id}")]
-    public async Task<ChatMessage?> GetChatMessageById(int id)
+    [HttpGet("/message-boards/{boardId}")]
+    public async Task<IActionResult> GetMessageBoardByIdAsync(int boardId)
     {
-        return await repository.GetChatMessageByIdAsync(id);
-    }
+        var board = await chatService.GetMessageBoardByIdAsync(boardId);
 
-    [HttpPost("/chat-messages")]
-    public async Task<IActionResult> AddChatMessageAsync([FromBody] CreateChatMessageModelRequest request)
-    {
-        // pseuo authentication - unique id
-        // Check if the user is already in the active user repository,
-        // if they are, check that they have a unique id that matches the one they sent with the request, 
-        // if they do, update their last active time in the active user repository.
-        // Get the username and timestamp + random string to hash a unique id for the user, 
-        // then cache that in an active user repository with the users IP address. Then use that to send updates to the client when they come online.
-        // Send unique id back to client, client sends that with every request, 
-        // use that to update the last active time for the user in the active user repository. 
-        // Then have a background service that runs every minute to remove inactive users from the active user repository based on a timeout value.
-        // Get the users address, cache as an active user and use that to send updates to the client when they come online.
-        var fromUserAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-
-        // bool isUserActive = await activeUserRepository.IsUserActiveAsync(request.UniqueId);
-        bool isUserActive = !string.IsNullOrWhiteSpace(request.UniqueId) && 
-                            await activeUserRepository.IsUserActiveAsync(request.UniqueId);
-        if (isUserActive)
+        if (board == null)
         {
-            // Create chat message
-            var id = repository.GetNextId();
-            var chatMessageRequest = new ChatMessage(
-                id,
-                request.FromUserName,
-                request.ToUserName,
-                request.LocalTimestamp,
-                DateTime.UtcNow,
-                request.Content
-            );
-
-            // Add chat message to repository
-            await repository.AddChatMessageAsync(chatMessageRequest);
-
-            // Update the users last active time in the active user repository.
-            await activeUserRepository.UpdateActiveUserAsync(
-                new ActiveUser(request.FromUserName, 
-                                fromUserAddress, 
-                                DateTime.UtcNow,
-                                request.UniqueId));
-            return Ok();
+            return NotFound($"Message board {boardId} was not found.");
         }
 
-
-
-
-        else // no active user found
-        {
-            // Does the username exist
-            bool doesUserNameExist = await activeUserRepository.DoesUserExistAsync(request.FromUserName);
-            if (doesUserNameExist)
-            {
-                return Unauthorized("Username already registered. Please use another username.");
-            }
-            else
-            {
-                string uniqueId = Guid.NewGuid().ToString();
-
-                await activeUserRepository.AddActiveUserAsync(
-                    new ActiveUser(
-                        request.FromUserName,
-                        fromUserAddress,
-                        DateTime.UtcNow,
-                        uniqueId
-                    )
-                );
-
-                var id = repository.GetNextId();
-
-                var chatMessageRequest = new ChatMessage(
-                    id,
-                    request.FromUserName,
-                    request.ToUserName,
-                    request.LocalTimestamp,
-                    DateTime.UtcNow,
-                    request.Content
-                );
-
-                await repository.AddChatMessageAsync(chatMessageRequest);
-
-                return Ok(uniqueId);
-            }
-        }
+        return Ok(board);
     }
 
-    [HttpPut("/chat-messages/{id}")]
-    public async Task<bool> UpdateChatMessage(UpdateChatMessageModelRequest request)
+    [HttpPost("/message-boards")]
+    public async Task<IActionResult> CreateMessageBoardAsync(
+        [FromBody] CreateMessageBoardRequest request)
     {
-        var chatMessageRequest = new ChatMessage(
-            request.Id,
-            request.FromUserName,
-            request.ToUserName,
-            request.LocalTimestamp,
-            DateTime.UtcNow,
-            request.Content
+        var board = await chatService.CreateMessageBoardAsync(
+            request.BoardName,
+            request.VisibleToPublic,
+            request.PasswordProtected,
+            request.Password
         );
-        
-        return await repository.UpdateChatMessageAsync(chatMessageRequest);
+
+        return Ok(board);
     }
 
-    [HttpDelete("/chat-messages/{id}")]
-    public async Task<bool> DeleteChatMessage(int id)
+    [HttpGet("/message-boards/{boardId}/messages")]
+    public async Task<IActionResult> GetMessagesForBoardAsync(int boardId)
     {
-        return await repository.DeleteChatMessageAsync(id);
+        var board = await chatService.GetMessageBoardByIdAsync(boardId);
+
+        if (board == null)
+        {
+            return NotFound($"Message board {boardId} was not found.");
+        }
+
+        var messages = await chatService.GetMessagesForBoardAsync(boardId);
+
+        return Ok(messages);
+    }
+
+    [HttpPost("/message-boards/{boardId}/messages")]
+    public async Task<IActionResult> SendMessageToBoardAsync(
+        int boardId,
+        [FromBody] CreateChatMessageRequest request)
+    {
+        var userAddress =
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        var result = await chatService.SendMessageToBoardAsync(
+            boardId,
+            request,
+            userAddress
+        );
+
+        if (result == null)
+        {
+            return BadRequest("Unable to send message.");
+        }
+
+        return Ok(result);
+    }
+
+    [HttpDelete("/message-boards/{boardId}/messages/{messageId}")]
+    public async Task<IActionResult> DeleteMessageAsync(
+        int boardId,
+        int messageId)
+    {
+        bool wasDeleted = await chatService.DeleteMessageAsync(
+            boardId,
+            messageId
+        );
+
+        if (!wasDeleted)
+        {
+            return NotFound();
+        }
+
+        return Ok();
     }
 }

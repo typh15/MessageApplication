@@ -7,6 +7,9 @@ public class ChatMessage
     public DateTime ServerTimestamp { get; set; }
     public string Content { get; set; }
     public string GlobalId { get; set; }
+    public int Hash{ get; set; }
+
+
 
     public ChatMessage(int id, string fromUserName, 
     MessageBoard parentBoard, DateTime clientTimestamp, 
@@ -18,10 +21,14 @@ public class ChatMessage
         ClientTimestamp = clientTimestamp;
         ServerTimestamp = serverTimestamp;
         Content = content;
+        GlobalId = "";
+        Hash = HashCode.Combine(Id, FromUserName, ParentBoard.BoardId, ClientTimestamp, ServerTimestamp, Content);
     }
 
     public void AssignGlobalId()
     {
         GlobalId = $"{ParentBoard.BoardId}-{Id}";
     }
+
+
 }

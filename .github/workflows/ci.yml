@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore NuGet packages
+        run: dotnet restore
+
+      - name: Build API
+        run: dotnet build MessagingApp.Api -c Release --no-restore
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install client dependencies
+        working-directory: MessagingAppClient
+        run: npm ci
+
+      - name: Run client lint
+        working-directory: MessagingAppClient
+        run: npm run lint

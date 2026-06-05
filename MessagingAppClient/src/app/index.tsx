@@ -88,7 +88,7 @@ export default function HomeScreen() {
             <SendMessageButton
             text={text}
             from_user="current_user"
-            to_user="recipient_user"
+            destination="recipient_user"
             onSendMessage={handleSendMessage}
             />
         </ThemedView>

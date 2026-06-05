@@ -1,6 +1,6 @@
-public class UpdateChatMessageModelRequest
+public class UpdateMessageBoardRequest
 {
-    public int Id { get; set; } = 0;
+    public int BoardId { get; set; } = 0;
     public string FromUserName { get; set; } = string.Empty;
     public string ToUserName { get; set; } = string.Empty;
     public DateTime LocalTimestamp { get; set; } = DateTime.UtcNow;

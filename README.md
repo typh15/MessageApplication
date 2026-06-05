@@ -32,7 +32,7 @@ MessagingApp/
 
 ## Features
 
-- **Message Boards**: Create public/private message boards with optional password protection
+- **Message Boards**: Create public/*(private) message boards with optional *(password protection),    * - these features are in active development 
 - **Board Management**: Create, join, and browse multiple message boards
 - **Real-time Messaging**: Send and receive messages with 1-second polling for live updates
 - **User Registration**: Pre-registration flow with persistent username and unique ID storage
@@ -247,17 +247,21 @@ npm install <package-name>
 
 ## Future Enhancements
 
+Highest Priority - 
+- **Private and Password Protected Boards**: Finish this feature
+- **Make UI Acceptable**: It's ugly but it works, would like to have it look good and work
+
+High Priority - 
 - **Database Integration**: Replace in-memory storage with persistent database (SQL Server, PostgreSQL)
-- **User Profiles**: Add user avatars, profiles, and bio information
-- **Direct Messaging**: One-on-one private message threads
-- **Message Reactions**: Emoji reactions and message threading
-- **Advanced Search**: Search messages by content, user, or date
+- **Direct Messaging**: One-on-one private message threads(Private message boards with automatic naming, and a max usercount of 2) 
 - **Message Editing/Deletion**: Edit sent messages and delete with soft-delete support
 - **Notifications**: Push notifications for new messages and board activity
-- **Rate Limiting**: API request rate limiting to prevent abuse
+  
+Mid Priority - 
+- **Encryption**: End-to-end encryption
+  
+Lower Prioriry
 - **Admin Panel**: Board moderation and user management tools
-- **Authentication**: JWT tokens or OAuth integration for enhanced security
-- **Encryption**: End-to-end encryption for private messages
 
 ## License
 

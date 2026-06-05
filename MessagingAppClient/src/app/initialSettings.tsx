@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function TabTwoScreen() {
   const [username, setUsername] = useState('');
-  const [sendToUser, setSendToUser] = useState('');
+  const [sendToDestination, setSendToDestination] = useState('');
   const [ipAddress, setIpAddress] = useState('');
   const [uniqueId, setUniqueId] = useState('');
 
@@ -60,13 +60,13 @@ export default function TabTwoScreen() {
           </ThemedView>
 
           <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Send to User</ThemedText>
+            <ThemedText style={styles.label}>Send to Destination</ThemedText>
             <TextInput
               style={[styles.input, { color: theme.text, borderColor: theme.text }]}
               placeholderTextColor={theme.text + '80'}
-              placeholder="Enter target user"
-              value={sendToUser}
-              onChangeText={setSendToUser}
+              placeholder="Enter the target message destination (e.g., username or group name)"
+              value={sendToDestination}
+              onChangeText={setSendToDestination}
             />
           </ThemedView>
 

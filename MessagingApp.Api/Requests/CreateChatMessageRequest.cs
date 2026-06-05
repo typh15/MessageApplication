@@ -1,4 +1,4 @@
-public class CreateChatMessageModelRequest
+public class CreateChatMessageRequest
 {
     public string FromUserName { get; set; } = string.Empty;
     public string ToUserName { get; set; } = string.Empty;

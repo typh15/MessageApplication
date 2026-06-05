@@ -9,8 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-builder.Services.AddSingleton<IChatMessageRepository, InMemoryRepository>();
 builder.Services.AddSingleton<IActiveUserRepository, ActiveUserRepository>();
+builder.Services.AddSingleton<IMessageBoardRepository, MessageBoardRepository>();
+builder.Services.AddSingleton<IChatService, ChatService>();
 
 builder.Services.AddCors(options =>
 {

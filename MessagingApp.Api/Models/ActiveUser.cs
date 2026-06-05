@@ -4,6 +4,7 @@ public class ActiveUser
     public string Address { get; set; }
     public DateTime LastActiveTime { get; set; }
     public string? UniqueId { get; set; }
+    public List<int> MessageBoardIds { get; set; }
 
     public ActiveUser(string userName, string address, DateTime lastActiveTime, string? uniqueId = "")
     {
@@ -11,5 +12,6 @@ public class ActiveUser
         Address = address;
         LastActiveTime = lastActiveTime;
         UniqueId = uniqueId;
+        MessageBoardIds = new List<int>();
     }
 }

@@ -16,7 +16,7 @@ class ActiveUserRepository : IActiveUserRepository
         return Task.FromResult(false);
     }
 
-    public Task<List<ActiveUser>> GetActiveUsersAsync()
+    public Task<List<ActiveUser>> GetAllActiveUsersAsync()
     {
         return Task.FromResult(activeUsers);
     }

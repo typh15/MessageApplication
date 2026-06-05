@@ -1,13 +1,20 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { useColorScheme } from 'react-native';
+import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 
-import AppTabs from '@/components/GenericComponents/app-tabs';
-
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AppTabs />
+      <Stack
+        screenOptions={{ headerShown: false }}
+        initialRouteName="registration"
+      >
+        <Stack.Screen name="registration" />
+        <Stack.Screen name="boards" />
+        <Stack.Screen name="chat" />
+      </Stack>
     </ThemeProvider>
   );
 }

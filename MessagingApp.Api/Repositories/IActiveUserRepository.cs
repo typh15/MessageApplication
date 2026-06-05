@@ -1,7 +1,7 @@
 public interface IActiveUserRepository
 {
     Task<bool> AddActiveUserAsync(ActiveUser activeUser);
-    Task<List<ActiveUser>> GetActiveUsersAsync();
+    Task<List<ActiveUser>> GetAllActiveUsersAsync();
     Task<bool> UpdateActiveUserAsync(ActiveUser activeUser);
     Task<bool> RemoveActiveUserAsync(string userName);
     Task<bool> IsUserActiveAsync(string uniqueId);

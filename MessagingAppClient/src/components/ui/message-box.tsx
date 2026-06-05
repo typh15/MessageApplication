@@ -19,7 +19,7 @@ export function MessageBox({ sender, message, timestamp, isSentByCurrentUser,}: 
                             hour: "2-digit",
                             minute: "2-digit", });
 
-    const formattedDateTime = `${formattedTime} · ${formattedDate}`;
+    const formattedDateTime = `${formattedTime} \u00B7 ${formattedDate}`;
 
     return (
         <View style={[ styles.messageContainer, 

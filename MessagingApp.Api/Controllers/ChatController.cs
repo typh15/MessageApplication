@@ -29,6 +29,26 @@ public class ChatController : ControllerBase
         return Ok(board);
     }
 
+    [HttpPost("/active-users")]
+    public async Task<IActionResult> CreateActiveUserAsync(
+        [FromBody] CreateActiveUserRequest request)
+    {
+        var userAddress =
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        var result = await chatService.CreateActiveUserAsync(
+            request.UserName,
+            userAddress
+        );
+
+        if (result == null)
+        {
+            return BadRequest("Username already exists.");
+        }
+
+        return Ok(result);
+    }
+
     [HttpPost("/message-boards")]
     public async Task<IActionResult> CreateMessageBoardAsync(
         [FromBody] CreateMessageBoardRequest request)
@@ -78,6 +98,28 @@ public class ChatController : ControllerBase
         }
 
         return Ok(result);
+    }
+
+    [HttpPost("/message-boards/{boardId}/join")]
+    public async Task<IActionResult> JoinMessageBoardAsync(
+        int boardId,
+        [FromBody] JoinBoardRequest request)
+    {
+        var userAddress =
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        var success = await chatService.JoinBoardAsync(
+            boardId,
+            request.UniqueId,
+            userAddress
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to join message board.");
+        }
+
+        return Ok();
     }
 
     [HttpDelete("/message-boards/{boardId}/messages/{messageId}")]

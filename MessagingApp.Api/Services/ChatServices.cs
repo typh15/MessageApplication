@@ -47,6 +47,29 @@ public class ChatService : IChatService
         return board.ChatMessages.ToList();
     }
 
+    public async Task<CreateActiveUserResponse?> CreateActiveUserAsync(string userName, string userAddress)
+    {
+        bool doesUserNameExist = await activeUserRepository.DoesUserExistAsync(userName);
+        
+        if (doesUserNameExist)
+        {
+            return null;
+        }
+
+        string uniqueId = Guid.NewGuid().ToString();
+        
+        var activeUser = new ActiveUser(
+            userName,
+            userAddress,
+            DateTime.UtcNow,
+            uniqueId
+        );
+
+        await activeUserRepository.AddActiveUserAsync(activeUser);
+
+        return new CreateActiveUserResponse(userName, uniqueId);
+    }
+
     public async Task<SendMessageResponse?> SendMessageToBoardAsync(
         int boardId,
         CreateChatMessageRequest request,
@@ -59,46 +82,31 @@ public class ChatService : IChatService
             return null;
         }
 
-        string uniqueIdToUse = request.UniqueId ?? "";
+        string uniqueId = request.UniqueId ?? "";
 
-        bool isUserActive =
-            !string.IsNullOrWhiteSpace(uniqueIdToUse)
-            && await activeUserRepository.IsUserActiveAsync(uniqueIdToUse);
-
-        ActiveUser activeUser;
-
-        if (isUserActive)
+        if (string.IsNullOrWhiteSpace(uniqueId))
         {
-            activeUser = new ActiveUser(
-                request.FromUserName,
-                userAddress,
-                DateTime.UtcNow,
-                uniqueIdToUse
-            );
-
-            await activeUserRepository.UpdateActiveUserAsync(activeUser);
+            return null;
         }
-        else
+
+        bool isUserActive = await activeUserRepository.IsUserActiveAsync(uniqueId);
+
+        if (!isUserActive)
         {
-            bool doesUserNameExist =
-                await activeUserRepository.DoesUserExistAsync(request.FromUserName);
-
-            if (doesUserNameExist)
-            {
-                return null;
-            }
-
-            uniqueIdToUse = Guid.NewGuid().ToString();
-
-            activeUser = new ActiveUser(
-                request.FromUserName,
-                userAddress,
-                DateTime.UtcNow,
-                uniqueIdToUse
-            );
-
-            await activeUserRepository.AddActiveUserAsync(activeUser);
+            return null;
         }
+
+        var activeUsers = await activeUserRepository.GetActiveUsersAsync();
+        var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
+
+        if (activeUser == null)
+        {
+            return null;
+        }
+
+        activeUser.LastActiveTime = DateTime.UtcNow;
+        activeUser.Address = userAddress;
+        await activeUserRepository.UpdateActiveUserAsync(activeUser);
 
         bool userIsAlreadyInBoard =
             await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser);
@@ -113,7 +121,7 @@ public class ChatService : IChatService
         var chatMessage = new ChatMessage(
             messageId,
             request.FromUserName,
-            board,
+            boardId,
             request.LocalTimestamp,
             DateTime.UtcNow,
             request.Content
@@ -129,7 +137,49 @@ public class ChatService : IChatService
             return null;
         }
 
-        return new SendMessageResponse(uniqueIdToUse, chatMessage);
+        return new SendMessageResponse(uniqueId, chatMessage);
+    }
+
+    public async Task<bool> JoinBoardAsync(int boardId, string uniqueId, string userAddress)
+    {
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+
+        if (board == null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        bool isUserActive = await activeUserRepository.IsUserActiveAsync(uniqueId);
+
+        if (!isUserActive)
+        {
+            return false;
+        }
+
+        var activeUsers = await activeUserRepository.GetActiveUsersAsync();
+        var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
+
+        if (activeUser == null)
+        {
+            return false;
+        }
+
+        activeUser.LastActiveTime = DateTime.UtcNow;
+        activeUser.Address = userAddress;
+        await activeUserRepository.UpdateActiveUserAsync(activeUser);
+
+        bool userIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser);
+        if (!userIsAlreadyInBoard)
+        {
+            await messageBoardRepository.AddUserToBoardAsync(boardId, activeUser);
+        }
+
+        return true;
     }
 
     public async Task<bool> DeleteMessageAsync(int boardId, int messageId)

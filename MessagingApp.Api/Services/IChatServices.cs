@@ -13,11 +13,18 @@ public interface IChatService
 
     Task<List<ChatMessage>> GetMessagesForBoardAsync(int boardId);
 
+    Task<CreateActiveUserResponse?> CreateActiveUserAsync(
+        string userName,
+        string userAddress
+    );
+
     Task<SendMessageResponse?> SendMessageToBoardAsync(
         int boardId,
         CreateChatMessageRequest request,
         string userAddress
     );
+
+    Task<bool> JoinBoardAsync(int boardId, string uniqueId, string userAddress);
 
     Task<bool> DeleteMessageAsync(int boardId, int messageId);
 }

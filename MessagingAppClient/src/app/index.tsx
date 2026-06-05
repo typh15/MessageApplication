@@ -1,6 +1,7 @@
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRef, useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Platform, Pressable, Image, ScrollView, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,6 +23,12 @@ const update_interval = 1; // Update every ___ seconds
 
 
 export default function HomeScreen() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Always start at the registration screen
+    router.replace('/registration');
+  }, []);
     const messageRepoRef = useRef(new Message_Repo());
     const [text, setText] = useState('');
     const [messageRepo, setMessageRepo] = useState<Message_Class[]>([]);
@@ -33,8 +40,8 @@ export default function HomeScreen() {
         scrollViewRef.current?.scrollToEnd({ animated: true });
         }, [messageRepo]);
 
-    async function handleSendMessage(text: string, from_user: string, to_user: string) {
-        const savedMessage = await APIHandler.sendMessage(text, from_user, to_user);
+    async function handleSendMessage(text: string, from_user: string, boardId: number) {
+        const savedMessage = await APIHandler.sendMessage(text, from_user, boardId);
 
         messageRepoRef.current.addMessage(savedMessage);
 
@@ -88,7 +95,7 @@ export default function HomeScreen() {
             <SendMessageButton
             text={text}
             from_user="current_user"
-            destination="recipient_user"
+            boardId={1}
             onSendMessage={handleSendMessage}
             />
         </ThemedView>

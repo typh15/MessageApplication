@@ -3,15 +3,15 @@ import { Pressable, Image } from 'react-native';
 type SendButtonProps = {
     text: string;
     from_user: string;
-    destination: string;
-    onSendMessage: (messageText: string, from_user: string, destination: string) => void;
+    boardId: number;
+    onSendMessage: (messageText: string, from_user: string, boardId: number) => void;
 };
 
-export function SendMessageButton({ text, from_user, destination, onSendMessage }: SendButtonProps) {
+export function SendMessageButton({ text, from_user, boardId, onSendMessage }: SendButtonProps) {
     const isDisabled = text.trim().length === 0;
 
     return (
-        <Pressable onPress={() => { if (!isDisabled) { onSendMessage(text, from_user, destination); }}}
+        <Pressable onPress={() => { if (!isDisabled) { onSendMessage(text, from_user, boardId); }}}
             disabled={isDisabled}
             style={({ pressed }) => ({
                 width: 48,

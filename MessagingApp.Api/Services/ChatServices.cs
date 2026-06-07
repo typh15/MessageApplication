@@ -40,6 +40,12 @@ public class ChatService : IChatService
         return await activeUserRepository.GetAllActiveUsersAsync();
     }
 
+    public async Task<List<String>> GetAllActiveUserNames()
+    {
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+        return activeUsers.Select(u => u.UserName).ToList();
+    }
+
     public async Task<List<ChatMessage>> GetMessagesForBoardAsync(int boardId)
     {
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);

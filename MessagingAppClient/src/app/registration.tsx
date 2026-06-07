@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -10,11 +10,26 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as APIHandler from '@/ApiHandler';
 
+import { Button } from '@/components/ui/Button';
+import { LabeledTextBox } from '@/components/ui/LabeledTextBox';
+
 export default function RegistrationScreen() {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverUrl, setServerUrl] = useState('');
+  const [activeUserNames, setActiveUserNames] = useState<string[]>([]);
   const router = useRouter();
+
+  const loadServerUrl = async () => {
+    try {      const url = await AsyncStorage.getItem('serverUrl');
+      if (url) {
+        setServerUrl(url);
+      }
+    } catch (err) { 
+        console.error('Failed to load server URL:', err);
+    }
+  }
 
   const safeAreaInsets = useSafeAreaInsets();
   const insets = {
@@ -36,6 +51,22 @@ export default function RegistrationScreen() {
     },
   });
 
+  const GetActiveUserNames = async () => {
+    try {
+      const names = await APIHandler.GetAllActiveUserNames();
+      console.log('Active usernames:', names);
+      setActiveUserNames(names);
+    } catch (err) {
+      console.error('Failed to fetch active usernames:', err);
+    }
+  };
+
+  useEffect(() => {
+    // For testing: fetch active usernames on load
+    GetActiveUserNames();
+  }, []);
+
+
   const handleRegister = async () => {
     if (!username.trim()) {
       setError('Please enter a username');
@@ -49,8 +80,9 @@ export default function RegistrationScreen() {
       const response = await APIHandler.createActiveUser(username);
       console.log('User registered:', response);
       
-      // Store username locally
+      // Store username and IP address locally
       await AsyncStorage.setItem('username', username);
+      await AsyncStorage.setItem('serverUrl', serverUrl);
       
       // Navigate to the boards selection screen
       router.push('../boards');
@@ -108,20 +140,17 @@ export default function RegistrationScreen() {
         </ThemedView>
 
         <ThemedView style={styles.formContainer}>
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Username</ThemedText>
-            <TextInput
-              style={[styles.input, { color: theme.text, borderColor: theme.text }]}
-              placeholderTextColor={theme.text + '80'}
-              placeholder="Enter your username"
-              value={username}
-              onChangeText={(text) => {
-                setUsername(text);
-                setError('');
-              }}
-              editable={!loading}
+            
+            <LabeledTextBox
+                labelText="Username"
+                placeholder="Enter your username..."
+                value={username}
+                onChangeText={(text) => {
+                                setUsername(text.trim());
+                                setError('');
+                            }}
+                editable={!loading}
             />
-          </ThemedView>
 
           {error ? (
             <ThemedView style={[styles.errorContainer, { borderColor: '#ff4444' }]}>
@@ -129,34 +158,44 @@ export default function RegistrationScreen() {
             </ThemedView>
           ) : null}
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.registerButton,
-              pressed && styles.buttonPressed,
-              loading && styles.buttonDisabled,
-            ]}
-            onPress={handleRegister}
-            disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#ffffff" size="small" />
-            ) : (
-              <ThemedText style={styles.buttonText}>Register</ThemedText>
-            )}
-          </Pressable>
+            <Button
+                showText={true}
+                buttonText="Register"
+                onPress={handleRegister}
+                disabled={loading || username.trim().length === 0 || activeUserNames.includes(username)}
+                style={styles.buttonListStyle}
+                textStyle={styles.buttonText}
+            />
 
-          <Pressable
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            <ThemedText style={[styles.buttonText, { opacity: 0.9 }]}>Login</ThemedText>
-          </Pressable>
+            <Button
+                showText={true}
+                buttonText="Login"
+                onPress={handleLogin}
+                disabled={loading || username.trim().length === 0 || !activeUserNames.includes(username)}
+                style={styles.buttonListStyle}
+                textStyle={styles.buttonText}
+            />
 
-          <Pressable
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-            onPress={handleClearUniqueId}>
-            <ThemedText style={[styles.buttonText, { opacity: 0.7 }]}>Clear Saved ID</ThemedText>
-          </Pressable>
+            <Button
+                showText={true}
+                buttonText="Clear Saved ID"
+                onPress={handleClearUniqueId}
+                disabled={loading || activeUserNames.length === 0}
+                style={styles.buttonListStyle}
+                textStyle={styles.buttonText}
+            />
+
+            <ThemedView style={styles.inputGroup}>
+                <ThemedText style={styles.label}>Server URL</ThemedText>
+                <TextInput
+                style={[styles.input, { color: theme.text, borderColor: theme.text }]}
+                placeholderTextColor={theme.text + '80'}
+                placeholder="Enter server URL"
+                value={serverUrl}
+                onChangeText={setServerUrl}
+                />
+            </ThemedView>
+          
         </ThemedView>
       </ThemedView>
     </ScrollView>
@@ -208,6 +247,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 68, 68, 0.1)',
   },
   registerButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    padding: Spacing.three,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Spacing.two,
+  },
+  buttonListStyle: {
     backgroundColor: '#007AFF',
     borderRadius: 8,
     padding: Spacing.three,

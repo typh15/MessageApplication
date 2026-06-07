@@ -63,6 +63,21 @@ public class ChatController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("/active-usernames")]
+    public async Task<IActionResult> GetAllActiveUserNamesAsync()
+    {
+
+        var result = await chatService.GetAllActiveUserNames();
+
+
+        if (result == null)
+        {
+            return Ok(new List<String>());
+        }
+
+        return Ok(result);
+    }
+
     [HttpPost("/message-boards")]
     public async Task<IActionResult> CreateMessageBoardAsync(
         [FromBody] CreateMessageBoardRequest request)

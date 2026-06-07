@@ -178,3 +178,24 @@ export async function joinMessageBoard(boardId: number): Promise<boolean> {
 
     return true;
 }
+
+export async function getMessageBoardData(boardId: number): Promise<MessageBoard> {
+    const response = await fetch(`${serverUrl}/message-boards/${boardId}`);
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Fetch board data failed:', txt);
+        throw new Error('Fetch board data failed');
+    }
+    return await response.json();
+}
+
+export async function GetAllActiveUserNames(): Promise<string[]> {
+    const response = await fetch(`${serverUrl}/active-usernames`);
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Fetch active usernames failed:', txt);
+        throw new Error('Fetch active usernames failed');
+    }
+    return await response.json();
+}
+

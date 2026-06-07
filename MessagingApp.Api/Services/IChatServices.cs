@@ -13,6 +13,7 @@ public interface IChatService
 
     Task<List<ChatMessage>> GetMessagesForBoardAsync(int boardId);
     Task<List<ActiveUser>> GetAllActiveUsersAsync();
+    Task<List<String>> GetAllActiveUserNames();
 
     Task<CreateActiveUserResponse?> CreateActiveUserAsync(
         string userName,

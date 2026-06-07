@@ -9,6 +9,9 @@ import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as APIHandler from '@/ApiHandler';
 
+import { Button } from '@/components/ui/Button';
+
+
 export interface MessageBoard {
     boardId: number;
     boardName: string;
@@ -20,8 +23,10 @@ export default function BoardSelectionScreen() {
     const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
     const [joining, setJoining] = useState(false);
     const [boards, setBoards] = useState<MessageBoard[]>([]);
+
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
     const [error, setError] = useState('');
     const router = useRouter();
     
@@ -106,47 +111,35 @@ const loadBoards = async (showFullScreenLoading: boolean = false) => {
       setSelectedBoardId(null);
     }
   };
+const renderBoardCard = (board: MessageBoard) => (
+  <ThemedView style={[styles.boardCard, { borderColor: theme.text + '90' }]}>
+    <ThemedView style={styles.boardInfo}>
+      <ThemedText type="subtitle" style={styles.boardName}>
+        {board.boardName}
+      </ThemedText>
 
-  const renderBoardCard = ({ item }: { item: MessageBoard }) => (
-    <ThemedView style={[styles.boardCard, { borderColor: theme.text + '40' }]}>
-      <ThemedView style={styles.boardInfo}>
-        <ThemedText type="subtitle" style={styles.boardName}>
-          {item.boardName}
-        </ThemedText>
-        <ThemedView style={styles.boardMeta}>
-          {item.visibleToPublic && (
-            <ThemedText style={styles.badgeText}>Public</ThemedText>
-          )}
-          {item.passwordProtected && (
-            <ThemedText style={styles.badgeText}>Protected</ThemedText>
-          )}
-        </ThemedView>
-      </ThemedView>
-      <Pressable
-        style={({ pressed }) => [
-          styles.joinButton,
-          pressed && styles.buttonPressed,
-          (joining && selectedBoardId === item.boardId) && styles.buttonDisabled,
-        ]}
-        onPress={() => handleJoinBoard(item.boardId)}
-        disabled={joining && selectedBoardId === item.boardId}>
-        {joining && selectedBoardId === item.boardId ? (
-          <ActivityIndicator color="#ffffff" size="small" />
-        ) : (
-          <ThemedText style={styles.joinButtonText}>Join</ThemedText>
+      <ThemedView style={styles.boardMeta}>
+        {board.visibleToPublic && (
+          <ThemedText style={styles.badgeText}>Public</ThemedText>
         )}
-      </Pressable>
-    </ThemedView>
-  );
 
-  if (loading) {
-    return (
-      <ThemedView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" />
-        <ThemedText style={{ marginTop: Spacing.three }}>Loading boards...</ThemedText>
+        {board.passwordProtected && (
+          <ThemedText style={styles.badgeText}>Protected</ThemedText>
+        )}
       </ThemedView>
-    );
-  }
+    </ThemedView>
+
+    <Button
+        showText={true}
+        buttonText="Join"
+        onPress={() => handleJoinBoard(board.boardId)}
+        disabled={joining && selectedBoardId === board.boardId}
+        style={styles.joinButton}
+        textStyle={styles.joinButtonText}
+    />
+
+  </ThemedView>
+);
 
   return (
     <ThemedView style={styles.container}>
@@ -157,12 +150,15 @@ const loadBoards = async (showFullScreenLoading: boolean = false) => {
         <ThemedView style={styles.headerContainer}>
           <ThemedView style={styles.headerTop}>
             <ThemedText type="title">Message Boards</ThemedText>
-            <Pressable
-              style={({ pressed }) => [styles.newBoardButton, pressed && styles.buttonPressed]}
-              onPress={() => router.push('../new-board')}
-            >
-              <ThemedText style={styles.newBoardButtonText}>New Board</ThemedText>
-            </Pressable>
+                
+            <Button
+                showText={true}
+                buttonText="New Board"
+                onPress={() => router.push('/new-board')}
+                style={styles.newBoardButton}
+                textStyle={styles.newBoardButtonText}
+            />
+
           </ThemedView>
 
           <ThemedText type="subtitle" style={styles.subtitle}>
@@ -173,11 +169,14 @@ const loadBoards = async (showFullScreenLoading: boolean = false) => {
         {error ? (
           <ThemedView style={[styles.errorContainer, { borderColor: '#ff4444' }]}>
             <ThemedText style={{ color: '#ff4444' }}>{error}</ThemedText>
-            <Pressable
-              style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
-              onPress={() => loadBoards(true)}>
-              <ThemedText style={[styles.buttonText, { fontSize: 14 }]}>Retry</ThemedText>
-            </Pressable>
+            
+                <Button
+                    showText={true}
+                    buttonText="New Board"
+                    onPress={() => router.push('/new-board')}
+                    style={styles.retryButton}
+                    textStyle={styles.buttonText}
+                />
           </ThemedView>
         ) : null}
 
@@ -186,14 +185,13 @@ const loadBoards = async (showFullScreenLoading: boolean = false) => {
             <ThemedText style={styles.emptyText}>No boards available</ThemedText>
           </ThemedView>
         ) : (
-          <FlatList
-            data={boards}
-            renderItem={renderBoardCard}
-            keyExtractor={(item) => item.boardId.toString()}
-            scrollEnabled={false}
-            style={styles.boardsList}
-            contentContainerStyle={{ gap: Spacing.three }}
-          />
+            <ThemedView style={styles.boardsList}>
+                {boards.map((board) => (
+                    <ThemedView key={board.boardId} style={styles.boardCardWrapper}>
+                        {renderBoardCard(board)}
+                    </ThemedView>
+                ))}
+            </ThemedView>
         )}
       </ScrollView>
     </ThemedView>
@@ -212,6 +210,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.two,
+    gap: Spacing.three,
+
+
   },
   newBoardButton: {
     backgroundColor: '#007AFF',
@@ -230,15 +231,19 @@ const styles = StyleSheet.create({
   },
   boardsList: {
     flex: 1,
+    gap: Spacing.two,
+    width: '98%',
   },
   boardCard: {
-    borderWidth: 1,
+    borderWidth: 4,
     borderRadius: 12,
-    padding: Spacing.four,
+    padding: Spacing.three,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.three,
+    borderColor: '#feffff',
+
   },
   boardInfo: {
     flex: 1,
@@ -271,12 +276,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  buttonPressed: {
-    opacity: 0.7,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
   errorContainer: {
     borderWidth: 1,
     borderRadius: 8,
@@ -305,5 +304,9 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     opacity: 0.6,
+  },
+
+  boardCardWrapper: {
+    marginBottom: Spacing.three,
   },
 });

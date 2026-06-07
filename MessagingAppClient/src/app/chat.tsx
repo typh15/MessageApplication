@@ -10,10 +10,12 @@ import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
 import { MessageBox } from '@/components/ui/message-box';
-import { SendMessageButton } from '@/components/ui/sendmessage-button';
+import { Button } from '@/components/ui/Button';
 import Message_Repo from '@/MessageRepository';
 import Message_Class from '@/components/Models/Message_Class';
 import * as APIHandler from '@/ApiHandler';
+import { FadeIn } from 'react-native-reanimated';
+import { useTheme } from '@/hooks/use-theme';
 
 const update_interval = 0.5; // Update every ___ seconds
 
@@ -28,7 +30,11 @@ export default function ChatScreen() {
     const [messageRepo, setMessageRepo] = useState<Message_Class[]>([]);
     const [userName, setUserName] = useState('');
     const [loading, setLoading] = useState(false);
+    const [boardTitle, setBoardTitle] = useState(`Board ${boardId}`);
     const scrollViewRef = useRef<ScrollView>(null);
+
+    const theme = useTheme();
+
     const loadUserName = async () => {
         try {
             const name = await AsyncStorage.getItem('username');
@@ -37,6 +43,14 @@ export default function ChatScreen() {
             }
         } catch (err) {
             console.error('Failed to load username:', err);
+        }
+    };
+    const loadBoardTitle = async () => {
+        try {
+            const boardInfo = await APIHandler.getMessageBoardData(boardId);
+            setBoardTitle(boardInfo.boardName);
+        } catch (err) {
+            console.error('Failed to load board title:', err);
         }
     };
 
@@ -61,6 +75,7 @@ export default function ChatScreen() {
     useEffect(() => {
         loadUserName();
         loadMessages();
+        loadBoardTitle();
     }, []);
 
     useEffect(() => {
@@ -97,6 +112,10 @@ export default function ChatScreen() {
         }
     };
 
+    const handleNewUserRequest = async () => {
+        Alert.alert('New User Request', 'This feature is not implemented yet.');
+    }
+
     const handleBackToBoards = () => {
         router.back();
     };
@@ -105,13 +124,34 @@ export default function ChatScreen() {
         <ThemedView style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
                 <ThemedView style={styles.header}>
-                    <Pressable onPress={handleBackToBoards} style={({ pressed }) => [
-                        styles.backButton,
-                        pressed && { opacity: 0.6 }
-                    ]}>
-                        <ThemedText>{'\u2190 Back'}</ThemedText>
-                    </Pressable>
-                    <ThemedText type="title" style={styles.boardTitle}>Board #{boardId}</ThemedText>
+                    
+                    <Button
+                        showText={true}
+                        buttonText={'\u2190 Back'}
+                        onPress={handleBackToBoards}
+                        style={styles.backButton}
+                        borderWidth={2}
+                        backgroundColor="transparent"
+                        borderColor={theme.genericborder}
+                        borderRadius={8}
+                
+                    />
+                    <ThemedView style={{ flex: 1, alignItems: 'center' }}>
+                    <ThemedText type="title" style={styles.boardTitle}>{boardTitle}</ThemedText>
+                    </ThemedView>
+                    <Button
+                        showText={true}
+                        buttonText={'New User Request'}
+                        onPress={handleNewUserRequest}
+                        style={styles.backButton}
+                        borderWidth={2}
+                        backgroundColor={theme.buttonBackground}
+                        borderColor={theme.genericborder}
+                        borderRadius={8}
+                        invisibleWhenDisabled={true}
+                        disabled={true}
+                
+                    />
                 </ThemedView>
 
                 <ScrollView
@@ -150,24 +190,19 @@ export default function ChatScreen() {
                         editable={!loading}
                     />
 
-                    <Pressable
+                    <Button
+                        showText={false}
+                        showImage={true}
+                        imageSource={require("../../assets/images/SendButton.png")}
                         onPress={handleSendMessage}
-                        disabled={loading || !text.trim()}
-                        style={({ pressed }) => [
-                            styles.sendButton,
-                            pressed && { opacity: 0.6 },
-                            (loading || !text.trim()) && { opacity: 0.4 }
-                        ]}
-                    >
-                                    
-                        <SendMessageButton
-                        text={text}
-                        from_user="current_user"
-                        boardId={1}
-                        onSendMessage={handleSendMessage}
-                        />
-                        <ThemedText style={styles.sendButtonText}>Send</ThemedText>
-                    </Pressable>
+                        disabled={loading || text.trim().length === 0}
+                        width = {48}
+                        height = {48}
+                        borderRadius = {8}
+                        imageWidth = {24}
+                        imageHeight = {24}
+                    />
+                           
                 </ThemedView>
             </SafeAreaView>
         </ThemedView>
@@ -188,10 +223,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.three,
-        paddingVertical: Spacing.two,
+        paddingVertical: 0,
         borderBottomWidth: 1,
         borderBottomColor: '#40404080',
-        marginBottom: Spacing.three,
+        marginBottom: -Spacing.two,
+        marginTop: Spacing.two,
     },
 
     backButton: {
@@ -201,7 +237,7 @@ const styles = StyleSheet.create({
 
     boardTitle: {
         flex: 1,
-        fontSize: 18,
+        fontSize: 24,
         fontWeight: '600',
     },
 

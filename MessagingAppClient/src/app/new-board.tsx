@@ -8,6 +8,8 @@ import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as APIHandler from '@/ApiHandler';
+import { Button } from '@/components/ui/Button';
+import { LabeledTextBox } from '@/components/ui/LabeledTextBox';
 
 export default function NewBoardScreen() {
   const [boardName, setBoardName] = useState('');
@@ -55,17 +57,14 @@ export default function NewBoardScreen() {
       contentContainerStyle={{ padding: Spacing.four }}>
       <ThemedView style={{ gap: Spacing.four }}>
         <ThemedText type="title">Create Message Board</ThemedText>
-        <ThemedView>
-          <ThemedText style={styles.label}>Board Name</ThemedText>
-          <TextInput
-            style={[styles.input, { color: theme.text, borderColor: theme.text }]}
-            placeholder="Enter board name"
-            placeholderTextColor={theme.text + '80'}
-            value={boardName}
-            onChangeText={setBoardName}
-            editable={!loading}
-          />
-        </ThemedView>
+        
+            <LabeledTextBox
+                labelText="Board Name"
+                placeholder="Enter board name"
+                value={boardName}
+                onChangeText={setBoardName}
+                editable={!loading}
+            />
 
         <ThemedView style={styles.row}>
           <ThemedText style={styles.label}>Visible To Public</ThemedText>
@@ -79,26 +78,28 @@ export default function NewBoardScreen() {
 
         {passwordProtected && (
           <ThemedView>
-            <ThemedText style={styles.label}>Password</ThemedText>
-            <TextInput
-              style={[styles.input, { color: theme.text, borderColor: theme.text }]}
-              placeholder="Enter password"
-              placeholderTextColor={theme.text + '80'}
-              value={password}
-              onChangeText={setPassword}
-              editable={!loading}
-              secureTextEntry
-            />
+        
+            <LabeledTextBox
+                labelText="Password"
+                placeholder="Enter password"
+                value={password}
+                onChangeText={setPassword}
+                editable={!loading}
+                password = {true}
+             />      
+             
           </ThemedView>
         )}
+                    
+        <Button
+            showText={true}
+            buttonText="Create Board"
+            disabled={loading}
+            onPress={handleCreate}
+            style={styles.createButton}
+            textStyle={styles.buttonText}
+        />
 
-        <Pressable
-          style={({ pressed }) => [styles.createButton, pressed && styles.buttonPressed, loading && styles.buttonDisabled]}
-          onPress={handleCreate}
-          disabled={loading}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.buttonText}>Create Board</ThemedText>}
-        </Pressable>
       </ThemedView>
     </ScrollView>
   );

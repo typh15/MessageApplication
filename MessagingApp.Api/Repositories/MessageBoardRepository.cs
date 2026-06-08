@@ -34,6 +34,7 @@ class MessageBoardRepository : IMessageBoardRepository
     {
         
         var newBoardId = GetNextBoardId();
+        var newUniqueBoardId = Guid.NewGuid().ToString();
         user.MessageBoardIds.Add(newBoardId);
         var newBoard = new MessageBoard(
             newBoardId,
@@ -43,13 +44,15 @@ class MessageBoardRepository : IMessageBoardRepository
             visibleToPublic,
             passwordProtected,
             password,
-            Array.Empty<ActiveUser>()
+            Array.Empty<ActiveUser>(),
+            newUniqueBoardId
         );
         var newDataResponse = new MessageBoardDataResponse(
             newBoardId,
             boardName,
             visibleToPublic,
-            passwordProtected
+            passwordProtected,
+            newUniqueBoardId
         );
 
 
@@ -66,6 +69,18 @@ class MessageBoardRepository : IMessageBoardRepository
     public Task<MessageBoard?> GetMessageBoardByIdAsync(int id)
     {
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == id);
+        return Task.FromResult(messageBoard);
+    }
+
+    public Task<MessageBoard?> GetMessageBoardByNameAsync(string name)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardName == name);
+        return Task.FromResult(messageBoard);
+    }
+
+    public Task<MessageBoard?> GetMessageBoardByUIdAsync(string uniqueBoardId)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(a => a.UniqueBoardId == uniqueBoardId);
         return Task.FromResult(messageBoard);
     }
 

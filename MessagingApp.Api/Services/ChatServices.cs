@@ -11,10 +11,17 @@ public class ChatService : IChatService
         this.activeUserRepository = activeUserRepository;
     }
 
-    public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync()
+    public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
     {
-        return await messageBoardRepository.GetMessageBoardsAsync();
-    }
+        var boards = await messageBoardRepository.GetMessageBoardsAsync();
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        return boards
+            .Where(board =>
+                board.VisibleToPublic ||
+                activeUser?.MessageBoardIds.Contains(board.BoardId) == true)
+            .ToList();
+            }
 
     public async Task<MessageBoardDataResponse?> GetMessageBoardByIdAsync(int boardId, string uniqueId)
     {
@@ -61,6 +68,15 @@ public class ChatService : IChatService
     public async Task<MessageBoardDataResponse?> CreateMessageBoardAsync(string uniqueId, string boardName, bool visibleToPublic, bool passwordProtected, string password)
     {
         
+        var boards = await messageBoardRepository.GetMessageBoardsAsync();
+        
+        var publicBoardNameExists = boards.Any(board =>
+                    board.VisibleToPublic &&
+                    string.Equals(board.BoardName, boardName, StringComparison.OrdinalIgnoreCase));
+        if (visibleToPublic && publicBoardNameExists)
+        {
+            return null;
+        }
         var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
         var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
 
@@ -291,16 +307,54 @@ public class ChatService : IChatService
         
     }
 
-    public async Task<bool> AddUserToRequests(int boardId, string uniqueId, string userAddress)
+    public async Task<bool> CheckIfUserCanRequest(RequestJoinBoardRequest request)
     {
-        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
-        var user = await activeUserRepository.GetAllActiveUsersAsync();
-
+        var board = await messageBoardRepository.GetMessageBoardByUIdAsync(request.UniqueBoardId);
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+        var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == request.UniqueId);
 
         if (board == null)
         {
             return false;
         }
+
+        else
+        {   
+            if (!board.PasswordProtected)
+            {
+                return true;
+            }
+            else
+            {
+                if (request.Password == null)
+                {
+                    return false;
+                }
+                else
+                {
+                    var correctPassword = await messageBoardRepository.CheckBoardPasswordAsync(board.BoardId, request.Password);
+                    return correctPassword;
+                }
+            }
+        }
+        
+    }
+
+    public async Task<bool> AddUserToRequests(string uniqueBoardId, string uniqueId, string userAddress, bool allowed)
+    {
+        var board = await messageBoardRepository.GetMessageBoardByUIdAsync(uniqueBoardId);
+        var user = await activeUserRepository.GetAllActiveUsersAsync();
+
+        if (!allowed)
+        {
+            return false;
+        }
+
+        if (board == null)
+        {
+            return false;
+        }
+        var boardId = board.BoardId;
 
         if (string.IsNullOrWhiteSpace(uniqueId))
         {
@@ -338,7 +392,6 @@ public class ChatService : IChatService
         
     }
 
-    
     public async Task<bool> ApproveUserJoinRequest(int boardId, string MemberUniqueId, string userName)
     {
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
@@ -397,4 +450,13 @@ public class ChatService : IChatService
         return true;
     }
 
+    public async Task<List<String>> GetPublicBoardNames()
+    {
+        
+        var boards = await messageBoardRepository.GetMessageBoardsAsync();
+        
+        return boards.Where(board => board.VisibleToPublic)
+                     .Select(board => board.BoardName)
+                     .ToList();
+    }
 }

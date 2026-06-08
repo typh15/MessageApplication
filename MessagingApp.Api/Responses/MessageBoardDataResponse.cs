@@ -4,12 +4,14 @@ public class MessageBoardDataResponse
     public string BoardName { get; set; }
     public bool VisibleToPublic { get; set; }
     public bool PasswordProtected { get; set; }
+    public string? UniqueBoardId { get; set; }
 
-    public MessageBoardDataResponse(int boardId, string boardName, bool visibleToPublic, bool passwordProtected)
+    public MessageBoardDataResponse(int boardId, string boardName, bool visibleToPublic, bool passwordProtected, string? uniqueBoardId = "")
     {
         BoardId = boardId;
         BoardName = boardName;
         VisibleToPublic = visibleToPublic;
         PasswordProtected = passwordProtected;
+        UniqueBoardId = uniqueBoardId;
     }
 }

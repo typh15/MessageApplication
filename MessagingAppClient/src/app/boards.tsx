@@ -3,6 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, ActivityIndicator, FlatLis
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
@@ -74,8 +75,11 @@ const loadBoards = async (showFullScreenLoading: boolean = false) => {
     }
 
     setError('');
-
-    const boardsData = await APIHandler.getMessageBoards();
+    var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
+    if (flexable_uniqueId == null){
+        flexable_uniqueId = "";
+    }
+    const boardsData = await APIHandler.getMessageBoards(flexable_uniqueId);
     setBoards(boardsData);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to load boards';

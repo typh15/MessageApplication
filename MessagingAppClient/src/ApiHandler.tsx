@@ -9,6 +9,7 @@ export interface MessageBoard {
     boardName: string;
     visibleToPublic: boolean;
     passwordProtected: boolean;
+    uniqueBoardId?: string;
 }
 
 export interface ActiveUserResponse {
@@ -43,10 +44,10 @@ export async function createActiveUser(userName: string): Promise<ActiveUserResp
     return data;
 }
 
-export async function getMessageBoards(): Promise<MessageBoard[]> {
+export async function getMessageBoards(uniqueId: string): Promise<MessageBoard[]> {
     console.log("Fetching message boards");
     
-    const response = await fetch(`${serverUrl}/message-boards`, {
+    const response = await fetch(`${serverUrl}/message-boards?uniqueId=${encodeURIComponent(uniqueId)}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
     });
@@ -149,6 +150,35 @@ export async function approveOfRequestedMembership(boardId: number, memberUnique
     return true;
 }
 
+export async function requestBoardMembership(uniqueBoardId: string, reqUserName: string, password?: string) {
+
+    const uniqueId = await AsyncStorage.getItem('uniqueid');
+
+    if (!uniqueId) {
+        throw new Error('User is not registered. UniqueId not found.');
+    }
+
+    const body = {
+        UniqueBoardId: uniqueBoardId,
+        UniqueId: uniqueId,
+        Password: password
+    };
+
+    const response = await fetch(`${serverUrl}/message-boards/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Join board failed:', txt);
+        throw new Error('Join board failed');
+    }
+
+    return true;
+}
+
 export async function createMessageBoard(uniqueId: string, boardName: string, visibleToPublic: boolean, passwordProtected: boolean, password: string) {
     const body = {
         UniqueId: uniqueId,
@@ -216,6 +246,16 @@ export async function GetAllActiveUserNames(): Promise<string[]> {
         const txt = await response.text();
         console.error('Fetch active usernames failed:', txt);
         throw new Error('Fetch active usernames failed');
+    }
+    return await response.json();
+}
+
+export async function GetAllPublicMessageBoardNames(): Promise<string[]> {
+    const response = await fetch(`${serverUrl}/public-boardnames`);
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Fetch public messageboard names failed:', txt);
+        throw new Error('Fetch public messageboard names failed:');
     }
     return await response.json();
 }

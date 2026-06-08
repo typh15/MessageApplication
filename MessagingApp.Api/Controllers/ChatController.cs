@@ -11,9 +11,9 @@ public class ChatController : ControllerBase
     }
 
     [HttpGet("/message-boards")]
-    public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync()
+    public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
     {
-        return await chatService.GetMessageBoardsAsync();
+        return await chatService.GetMessageBoardsAsync(uniqueId);
     }
     
     [HttpGet("/message-boards/{boardId}")]
@@ -64,6 +64,21 @@ public class ChatController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("/public-boardnames")]
+    public async Task<IActionResult> GetAllPublicBoardNamesAsync()
+    {
+
+        var result = await chatService.GetPublicBoardNames();
+
+
+        if (result == null)
+        {
+            return Ok(new List<String>());
+        }
+
+        return Ok(result);
+    }
+
     [HttpPost("/message-boards")]
     public async Task<IActionResult> CreateMessageBoardAsync(
         [FromBody] CreateMessageBoardRequest request)
@@ -75,6 +90,11 @@ public class ChatController : ControllerBase
             request.PasswordProtected,
             request.Password
         );
+
+        if (board == null)
+        {
+            return BadRequest("Public board with that name already exists.");
+        }
 
         return Ok(board);
     }
@@ -143,18 +163,20 @@ public class ChatController : ControllerBase
         return Ok();
     }
 
-    [HttpPost("/message-boards/{boardId}/request")]
+    [HttpPost("/message-boards/search")]
     public async Task<IActionResult> RequestJoinMessageBoardAsync(
-        int boardId,
-        [FromBody] JoinBoardRequest request)
+        [FromBody] RequestJoinBoardRequest request)
     {   
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
+        var canRequest = await chatService.CheckIfUserCanRequest(request);
+
         var success = await chatService.AddUserToRequests(
-            boardId,
+            request.UniqueBoardId,
             request.UniqueId,
-            userAddress
+            userAddress,
+            canRequest
         );
 
         if (!success)

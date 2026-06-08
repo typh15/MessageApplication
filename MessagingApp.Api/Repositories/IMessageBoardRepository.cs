@@ -7,6 +7,8 @@ public interface IMessageBoardRepository
 
     int GetNextMessageId(int boardid);
     Task<MessageBoard?> GetMessageBoardByIdAsync(int boardid);
+    Task<MessageBoard?> GetMessageBoardByNameAsync(string name);
+    Task<MessageBoard?> GetMessageBoardByUIdAsync(string uniqueBoardId);
     Task<MessageBoardDataResponse?> GetMessageBoardDataByIdAsync(int id);
     Task<ChatMessage?> GetMessageByIdAsync(int boardid, int id);
     Task<bool> AddMessageToBoardAsync(int boardid, ChatMessage chatMessage);

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, Switch, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
@@ -27,6 +27,10 @@ export default function NewBoardScreen() {
   const theme = useTheme();
 
   const handleCreate = async () => {
+    var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
+    if (flexable_uniqueId == null){
+        flexable_uniqueId = "";
+    }
     if (!boardName.trim()) {
       Alert.alert('Validation', 'Please enter a board name');
       return;
@@ -39,7 +43,7 @@ export default function NewBoardScreen() {
 
     try {
       setLoading(true);
-      await APIHandler.createMessageBoard(boardName.trim(), visibleToPublic, passwordProtected, password ?? '');
+      await APIHandler.createMessageBoard(flexable_uniqueId, boardName.trim(), visibleToPublic, passwordProtected, password ?? '');
       // go back to boards and let it refresh
       router.replace('../boards');
     } catch (err) {

@@ -109,8 +109,11 @@ export async function sendMessage(text:string, from_user: string, boardId: numbe
     }
 }
 
-export async function fetchMessages(boardId: number): Promise<Message_Class[]> {
-    const response = await fetch(`${serverUrl}/message-boards/${boardId}/messages`);
+export async function fetchMessages(boardId: number, uniqueId: string): Promise<Message_Class[]> {
+    const response = await fetch(
+        `${serverUrl}/message-boards/${boardId}/messages?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
+
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch messages failed:', txt);
@@ -130,8 +133,25 @@ export async function fetchMessages(boardId: number): Promise<Message_Class[]> {
     });
 }
 
-export async function createMessageBoard(boardName: string, visibleToPublic: boolean, passwordProtected: boolean, password: string) {
+export async function approveOfRequestedMembership(boardId: number, memberUniqueId: string, reqUserName: string) {
+    
+    const response = await fetch(
+        `${serverUrl}/message-boards/${boardId}/approvals?memberUniqueId=${encodeURIComponent(memberUniqueId)}&userName=${encodeURIComponent(reqUserName)}`,
+        { method: 'POST' }
+    );
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Failed to Approve of Member Join:', txt);
+        throw new Error('Failed to Approve of Member Join');
+    }
+
+    return true;
+}
+
+export async function createMessageBoard(uniqueId: string, boardName: string, visibleToPublic: boolean, passwordProtected: boolean, password: string) {
     const body = {
+        UniqueId: uniqueId,
         BoardName: boardName,
         VisibleToPublic: visibleToPublic,
         PasswordProtected: passwordProtected,
@@ -153,7 +173,7 @@ export async function createMessageBoard(boardName: string, visibleToPublic: boo
     return await response.json();
 }
 
-export async function joinMessageBoard(boardId: number): Promise<boolean> {
+export async function joinMessageBoard(boardId: number, password?: string): Promise<boolean> {
     const uniqueId = await AsyncStorage.getItem('uniqueid');
 
     if (!uniqueId) {
@@ -161,7 +181,8 @@ export async function joinMessageBoard(boardId: number): Promise<boolean> {
     }
 
     const body = {
-        UniqueId: uniqueId
+        UniqueId: uniqueId,
+        Password: password
     };
 
     const response = await fetch(`${serverUrl}/message-boards/${boardId}/join`, {
@@ -179,8 +200,8 @@ export async function joinMessageBoard(boardId: number): Promise<boolean> {
     return true;
 }
 
-export async function getMessageBoardData(boardId: number): Promise<MessageBoard> {
-    const response = await fetch(`${serverUrl}/message-boards/${boardId}`);
+export async function getMessageBoardData(uniqueId: string, boardId: number): Promise<MessageBoard> {
+    const response = await fetch(`${serverUrl}/message-boards/${boardId}?uniqueId=${encodeURIComponent(uniqueId)}`);
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch board data failed:', txt);

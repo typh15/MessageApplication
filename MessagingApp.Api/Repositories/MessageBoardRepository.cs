@@ -1,6 +1,7 @@
 class MessageBoardRepository : IMessageBoardRepository
 {
     private readonly List<MessageBoard> messageBoards = new List<MessageBoard>();
+    private readonly List<MessageBoardDataResponse> dataResponse = new List<MessageBoardDataResponse>();
 
     public int GetNextBoardId()
     {
@@ -29,30 +30,49 @@ class MessageBoardRepository : IMessageBoardRepository
     }
 
 
-    public Task<MessageBoard?> CreateMessageBoardAsync(string boardName, bool visibleToPublic, bool passwordProtected, string password)
+    public Task<MessageBoardDataResponse?> CreateMessageBoardAsync(ActiveUser user, string boardName, bool visibleToPublic, bool passwordProtected, string password)
     {
+        
+        var newBoardId = GetNextBoardId();
+        user.MessageBoardIds.Add(newBoardId);
         var newBoard = new MessageBoard(
-            GetNextBoardId(),
+            newBoardId,
             boardName,
-            Array.Empty<ActiveUser>(),
+            [user],
             Array.Empty<ChatMessage>(),
             visibleToPublic,
             passwordProtected,
-            password
+            password,
+            Array.Empty<ActiveUser>()
         );
+        var newDataResponse = new MessageBoardDataResponse(
+            newBoardId,
+            boardName,
+            visibleToPublic,
+            passwordProtected
+        );
+
+
+        dataResponse.Add(newDataResponse);
         messageBoards.Add(newBoard);
-        return Task.FromResult<MessageBoard?>(newBoard);
+        return Task.FromResult<MessageBoardDataResponse?>(newDataResponse);
     }
 
-    public Task<List<MessageBoard>> GetMessageBoardsAsync()
+    public Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync()
     {
-        return Task.FromResult(messageBoards.ToList());
+        return Task.FromResult(dataResponse.ToList());
     }
 
     public Task<MessageBoard?> GetMessageBoardByIdAsync(int id)
     {
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == id);
         return Task.FromResult(messageBoard);
+    }
+
+    public Task<MessageBoardDataResponse?> GetMessageBoardDataByIdAsync(int id)
+    {
+        var messageBoardData = dataResponse.FirstOrDefault(a => a.BoardId == id);
+        return Task.FromResult(messageBoardData);
     }
 
     public Task<ChatMessage?> GetMessageByIdAsync(int boardid, int id)
@@ -80,6 +100,7 @@ class MessageBoardRepository : IMessageBoardRepository
                 chatMessage.Content
             );
             messageBoard.ChatMessages = messageBoard.ChatMessages.Append(newChatMessage).ToArray();
+            newChatMessage.AssignGlobalId();
             
             UpdateMostRecentMessageHashAsync(boardid, newChatMessage.Hash);
 
@@ -92,9 +113,14 @@ class MessageBoardRepository : IMessageBoardRepository
     public Task<bool> UpdateBoardNameAsync(int boardid, string newName)
     {
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+        var boardDataRespose = dataResponse.FirstOrDefault(a => a.BoardId == boardid);
         if (messageBoard != null)
         {
             messageBoard.BoardName = newName;
+            if (boardDataRespose != null)
+            {
+                boardDataRespose.BoardName = newName;
+            }
             return Task.FromResult(true);
         }
         return Task.FromResult(false);
@@ -103,6 +129,7 @@ class MessageBoardRepository : IMessageBoardRepository
     public Task<bool> DeleteMessageBoardAsync(int boardid)
     {
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+        var boardDataRespose = dataResponse.FirstOrDefault(a => a.BoardId == boardid);
         if (messageBoard != null)
         {
             for (int i = 0; i < messageBoard.ActiveUsers.Length; i++)
@@ -112,7 +139,11 @@ class MessageBoardRepository : IMessageBoardRepository
             }
 
             messageBoards.Remove(messageBoard);
-
+            if (boardDataRespose != null)
+            {
+                dataResponse.Remove(boardDataRespose);
+            }
+            
             return Task.FromResult(true);
 
         }
@@ -152,6 +183,23 @@ class MessageBoardRepository : IMessageBoardRepository
         return Task.FromResult(false);
     }
 
+    public Task<bool> RemoveUserFromRequestAsync(int boardid, ActiveUser user)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+        if (messageBoard != null)
+        {
+            var existingUser = messageBoard.UserRequests.FirstOrDefault(u => u.UserName == user.UserName);
+            if (existingUser != null)
+            {
+                messageBoard.UserRequests = messageBoard.UserRequests.Where(u => u.UserName != user.UserName).ToArray();
+                user.RequestedMessageBoardIds.Remove(boardid);
+
+                return Task.FromResult(true);
+            }
+        }
+        return Task.FromResult(false);
+    }
+
     public Task<bool> DeleteMessageAsync(int boardid, int messageid)
     {
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
@@ -172,8 +220,19 @@ class MessageBoardRepository : IMessageBoardRepository
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
         if (messageBoard != null)
         {
-            var existingUser = messageBoard.ActiveUsers.FirstOrDefault(u => u.UserName == user.UserName);
+            var existingUser = messageBoard.ActiveUsers.FirstOrDefault(u => u.UniqueId == user.UniqueId);
             return Task.FromResult(existingUser != null);
+        }
+        return Task.FromResult(false);
+    }
+    
+    public Task<bool> CheckUserInRequestedListAsync(int boardid, ActiveUser user)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+        if (messageBoard != null)
+        {
+            var existingUserRequest = messageBoard.UserRequests.FirstOrDefault(u => u.UserName == user.UserName);
+            return Task.FromResult(existingUserRequest != null);
         }
         return Task.FromResult(false);
     }
@@ -186,5 +245,38 @@ class MessageBoardRepository : IMessageBoardRepository
             return Task.FromResult(messageBoard.Password == password);
         }
         return Task.FromResult(false);
+    }
+    public async Task<bool> AddUserToRequestedListAsync(
+        int boardid,
+        ActiveUser requestingUser)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(
+            board => board.BoardId == boardid
+        );
+
+        if (messageBoard == null)
+        {
+            return false;
+        }
+
+        bool userInBoard = await CheckUserInBoardAsync(boardid, requestingUser);
+
+        if (userInBoard)
+        {
+            return false;
+        }
+
+        bool userAlreadyRequested = messageBoard.UserRequests.Any(
+            user => user.UserName == requestingUser.UserName
+        );
+
+        if (userAlreadyRequested)
+        {
+            return false;
+        }
+        messageBoard.UserRequests = messageBoard.UserRequests.Append(requestingUser).ToArray();
+        requestingUser.RequestedMessageBoardIds.Add(boardid);
+
+        return true;
     }
 }

@@ -19,6 +19,8 @@ import { useTheme } from '@/hooks/use-theme';
 
 const update_interval = 0.5; // Update every ___ seconds
 
+
+
 export default function ChatScreen() {
     const params = useLocalSearchParams();
     const rawBoardId = params.boardId as string | undefined;
@@ -38,6 +40,7 @@ export default function ChatScreen() {
     const loadUserName = async () => {
         try {
             const name = await AsyncStorage.getItem('username');
+            
             if (name) {
                 setUserName(name);
             }
@@ -47,7 +50,11 @@ export default function ChatScreen() {
     };
     const loadBoardTitle = async () => {
         try {
-            const boardInfo = await APIHandler.getMessageBoardData(boardId);
+            var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
+            if (flexable_uniqueId == null){
+                flexable_uniqueId = "";
+            }
+            const boardInfo = await APIHandler.getMessageBoardData(flexable_uniqueId, boardId);
             setBoardTitle(boardInfo.boardName);
         } catch (err) {
             console.error('Failed to load board title:', err);
@@ -62,7 +69,11 @@ export default function ChatScreen() {
         }
 
         try {
-            const msgs = await APIHandler.fetchMessages(boardId);
+            var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
+            if (flexable_uniqueId == null){
+                flexable_uniqueId = "";
+            }
+            const msgs = await APIHandler.fetchMessages(boardId, flexable_uniqueId);
             // reset repo and populate
             messageRepoRef.current = new Message_Repo();
             msgs.forEach(m => messageRepoRef.current.addMessage(m));

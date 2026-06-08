@@ -8,8 +8,9 @@ public class MessageBoard
     public bool PasswordProtected { get; set; }
     public string Password { get; set; }
     public int MostRecentMessageHash { get; set; }
+    public ActiveUser[] UserRequests {get; set;}
 
-    public MessageBoard(int boardId, string boardName, ActiveUser[] activeUsers,  ChatMessage[] chatMessages, bool visibleToPublic, bool passwordProtected, string password)
+    public MessageBoard(int boardId, string boardName, ActiveUser[] activeUsers,  ChatMessage[] chatMessages, bool visibleToPublic, bool passwordProtected, string password, ActiveUser[] userRequests)
     {
         BoardId = boardId;
         BoardName = boardName;
@@ -19,5 +20,6 @@ public class MessageBoard
         PasswordProtected = passwordProtected;
         Password = password;
         MostRecentMessageHash = 0;
+        UserRequests = userRequests;
     }
 }

@@ -11,15 +11,15 @@ public class ChatController : ControllerBase
     }
 
     [HttpGet("/message-boards")]
-    public async Task<List<MessageBoard>> GetMessageBoardsAsync()
+    public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync()
     {
         return await chatService.GetMessageBoardsAsync();
     }
-
+    
     [HttpGet("/message-boards/{boardId}")]
-    public async Task<IActionResult> GetMessageBoardByIdAsync(int boardId)
+    public async Task<IActionResult> GetMessageBoardByIdAsync(int boardId, string uniqueId)
     {
-        var board = await chatService.GetMessageBoardByIdAsync(boardId);
+        var board = await chatService.GetMessageBoardByIdAsync(boardId, uniqueId);
 
         if (board == null)
         {
@@ -28,7 +28,7 @@ public class ChatController : ControllerBase
 
         return Ok(board);
     }
-
+    
     [HttpPost("/active-users")]
     public async Task<IActionResult> CreateActiveUserAsync(
         [FromBody] CreateActiveUserRequest request)
@@ -44,20 +44,6 @@ public class ChatController : ControllerBase
         if (result == null)
         {
             return BadRequest("Username already exists.");
-        }
-
-        return Ok(result);
-    }
-
-    [HttpGet("/active-users")]
-    public async Task<IActionResult> GetAllActiveUsersAsync()
-    {
-
-        var result = await chatService.GetAllActiveUsersAsync();
-
-        if (result == null)
-        {
-            return BadRequest("No active users found.");
         }
 
         return Ok(result);
@@ -83,6 +69,7 @@ public class ChatController : ControllerBase
         [FromBody] CreateMessageBoardRequest request)
     {
         var board = await chatService.CreateMessageBoardAsync(
+            request.UniqueId,
             request.BoardName,
             request.VisibleToPublic,
             request.PasswordProtected,
@@ -93,9 +80,9 @@ public class ChatController : ControllerBase
     }
 
     [HttpGet("/message-boards/{boardId}/messages")]
-    public async Task<IActionResult> GetMessagesForBoardAsync(int boardId)
+    public async Task<IActionResult> GetMessagesForBoardAsync(int boardId, string uniqueId)
     {
-        var board = await chatService.GetMessageBoardByIdAsync(boardId);
+        var board = await chatService.GetMessageBoardByIdAsync(boardId, uniqueId);
 
         if (board == null)
         {
@@ -119,6 +106,7 @@ public class ChatController : ControllerBase
             boardId,
             request,
             userAddress
+            
         );
 
         if (result == null)
@@ -133,11 +121,37 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> JoinMessageBoardAsync(
         int boardId,
         [FromBody] JoinBoardRequest request)
-    {
+    {   
+        
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
+        var canJoin = await chatService.CheckIfUserCanJoin(boardId, request.UniqueId, request);
+
         var success = await chatService.JoinBoardAsync(
+            boardId,
+            request.UniqueId,
+            userAddress,
+            canJoin
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to join message board.");
+        }
+
+        return Ok();
+    }
+
+    [HttpPost("/message-boards/{boardId}/request")]
+    public async Task<IActionResult> RequestJoinMessageBoardAsync(
+        int boardId,
+        [FromBody] JoinBoardRequest request)
+    {   
+        var userAddress =
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        var success = await chatService.AddUserToRequests(
             boardId,
             request.UniqueId,
             userAddress
@@ -145,7 +159,27 @@ public class ChatController : ControllerBase
 
         if (!success)
         {
-            return BadRequest("Unable to join message board.");
+            return BadRequest("Unable to request join message board.");
+        }
+
+        return Ok();
+    }
+
+    [HttpPost("/message-boards/{boardId}/approvals")]
+    public async Task<IActionResult> AttemptMessageBoardApprovalAsync(
+        int boardId,
+        string memberUniqueId,
+        string userName)
+    {   
+        var success = await chatService.ApproveUserJoinRequest(
+            boardId,
+            memberUniqueId,
+            userName
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to approve of message board join request.");
         }
 
         return Ok();

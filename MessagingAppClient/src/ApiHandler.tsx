@@ -46,7 +46,6 @@ export async function createActiveUser(userName: string): Promise<ActiveUserResp
 }
 
 export async function getMessageBoards(uniqueId: string): Promise<MessageBoard[]> {
-    console.log("Fetching message boards");
     
     const response = await fetch(`${serverUrl}/message-boards?uniqueId=${encodeURIComponent(uniqueId)}`, {
         method: 'GET',

@@ -54,7 +54,6 @@ export default function RegistrationScreen() {
     const GetActiveUserNames = async () => {
         try {
             const names = await APIHandler.GetAllActiveUserNames();
-            console.log('Active usernames:', names);
             setActiveUserNames(names);
         } 
         catch (err) {

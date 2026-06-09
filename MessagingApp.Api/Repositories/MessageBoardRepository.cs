@@ -1,3 +1,6 @@
+
+
+
 class MessageBoardRepository : IMessageBoardRepository
 {
     private readonly List<MessageBoard> messageBoards = new List<MessageBoard>();
@@ -34,7 +37,7 @@ class MessageBoardRepository : IMessageBoardRepository
     {
         
         var newBoardId = GetNextBoardId();
-        var newUniqueBoardId = Guid.NewGuid().ToString();
+        var newUniqueBoardId = IdGenerator.Get8CharId();
         user.MessageBoardIds.Add(newBoardId);
         var newBoard = new MessageBoard(
             newBoardId,

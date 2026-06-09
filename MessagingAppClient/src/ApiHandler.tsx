@@ -10,6 +10,7 @@ export interface MessageBoard {
     visibleToPublic: boolean;
     passwordProtected: boolean;
     uniqueBoardId?: string;
+    userRequests?: Array<{ userName: string; uniqueId?: string; address?: string }>;
 }
 
 export interface ActiveUserResponse {
@@ -260,3 +261,29 @@ export async function GetAllPublicMessageBoardNames(): Promise<string[]> {
     return await response.json();
 }
 
+export async function validateActiveUser(uniqueId: string): Promise<boolean> {
+    const response = await fetch(
+        `${serverUrl}/active-users/validate?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
+
+    if (!response.ok) {
+        return false;
+    }
+
+    return await response.json();
+}
+
+export async function getBoardJoinRequests(
+    boardId: number,
+    memberUniqueId: string
+): Promise<Array<{ userName: string; uniqueId: string }>> {
+    const response = await fetch(
+        `${serverUrl}/message-boards/${boardId}/requests?memberUniqueId=${encodeURIComponent(memberUniqueId)}`
+    );
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch join requests');
+    }
+
+    return await response.json();
+}

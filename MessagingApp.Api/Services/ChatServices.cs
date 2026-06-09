@@ -406,11 +406,6 @@ public class ChatService : IChatService
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(MemberUniqueId))
-        {
-            return false;
-        }
-
         var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
 
         var reqestingUser = activeUsers.FirstOrDefault(u => u.UserName == userName);
@@ -459,4 +454,45 @@ public class ChatService : IChatService
                      .Select(board => board.BoardName)
                      .ToList();
     }
+
+    public async Task<bool> IsUserActiveAsync(string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        return await activeUserRepository.IsUserActiveAsync(uniqueId);
+    }
+public async Task<List<JoinBoardRequestDisplay>?> GetBoardJoinRequestsAsync(
+    int boardId,
+    string memberUniqueId
+)
+{
+    var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+
+    if (board == null)
+    {
+        return null;
+    }
+
+    var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+    var member = activeUsers.FirstOrDefault(user => user.UniqueId == memberUniqueId);
+
+    if (member == null)
+    {
+        return null;
+    }
+
+    var memberIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, member);
+
+    if (!memberIsInBoard)
+    {
+        return null;
+    }
+
+    return board.UserRequests
+        .Select(user => new JoinBoardRequestDisplay(user.UserName, user.UniqueId))
+        .ToList();
+}
 }

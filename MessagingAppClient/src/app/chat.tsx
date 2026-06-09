@@ -33,6 +33,7 @@ export default function ChatScreen() {
     const [userName, setUserName] = useState('');
     const [loading, setLoading] = useState(false);
     const [boardTitle, setBoardTitle] = useState(`Board ${boardId}`);
+    const [uniqueBoardId, setUniqueBoardId] = useState<string | null>(null);
     const scrollViewRef = useRef<ScrollView>(null);
 
     const theme = useTheme();
@@ -56,6 +57,7 @@ export default function ChatScreen() {
             }
             const boardInfo = await APIHandler.getMessageBoardData(flexable_uniqueId, boardId);
             setBoardTitle(boardInfo.boardName);
+            setUniqueBoardId(boardInfo.uniqueBoardId ?? null);
         } catch (err) {
             console.error('Failed to load board title:', err);
         }
@@ -124,7 +126,10 @@ export default function ChatScreen() {
     };
 
     const handleNewUserRequest = async () => {
-        Alert.alert('New User Request', 'This feature is not implemented yet.');
+        router.push({
+            pathname: '../approval-requests',
+            params: { boardId: boardId.toString() }
+        });
     }
 
     const handleBackToBoards = () => {
@@ -148,19 +153,22 @@ export default function ChatScreen() {
                 
                     />
                     <ThemedView style={{ flex: 1, alignItems: 'center' }}>
-                    <ThemedText type="title" style={styles.boardTitle}>{boardTitle}</ThemedText>
+                        <ThemedText type="title" style={styles.boardTitle}>{boardTitle}</ThemedText>
+                        {uniqueBoardId ? (
+                            <ThemedText style={styles.uniqueBoardIdText}>
+                                ID: {uniqueBoardId}
+                            </ThemedText>
+                        ) : null}
                     </ThemedView>
                     <Button
                         showText={true}
-                        buttonText={'New User Request'}
+                        buttonText={'Join Requests'}
                         onPress={handleNewUserRequest}
                         style={styles.backButton}
                         borderWidth={2}
                         backgroundColor={theme.buttonBackground}
                         borderColor={theme.genericborder}
                         borderRadius={8}
-                        invisibleWhenDisabled={true}
-                        disabled={true}
                 
                     />
                 </ThemedView>
@@ -250,6 +258,12 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 24,
         fontWeight: '600',
+    },
+
+    uniqueBoardIdText: {
+        fontSize: 12,
+        opacity: 0.7,
+        marginTop: Spacing.one,
     },
 
     messageScroll: {

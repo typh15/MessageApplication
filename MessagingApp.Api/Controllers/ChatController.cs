@@ -224,4 +224,27 @@ public class ChatController : ControllerBase
 
         return Ok();
     }
+
+    [HttpGet("/active-users/validate")]
+    public async Task<IActionResult> ValidateActiveUserAsync(string uniqueId)
+    {
+        var isActive = await chatService.IsUserActiveAsync(uniqueId);
+        return Ok(isActive);
+    }
+
+
+[HttpGet("/message-boards/{boardId}/requests")]
+public async Task<IActionResult> GetBoardJoinRequestsAsync(
+    int boardId,
+    string memberUniqueId)
+{
+    var requests = await chatService.GetBoardJoinRequestsAsync(boardId, memberUniqueId);
+
+    if (requests == null)
+    {
+        return BadRequest("Unable to load join requests.");
+    }
+
+    return Ok(requests);
+}
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
+import { Platform, ScrollView, StyleSheet, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -24,6 +24,8 @@ export default function BoardSelectionScreen() {
     const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
     const [joining, setJoining] = useState(false);
     const [boards, setBoards] = useState<MessageBoard[]>([]);
+    const [searchBoardId, setSearchBoardId] = useState('');
+    const [requestingJoin, setRequestingJoin] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -62,11 +64,36 @@ export default function BoardSelectionScreen() {
   });
 
   useEffect(() => {
-   
     loadBoards(true);
   }, []);
 
-const loadBoards = async (showFullScreenLoading: boolean = false) => {
+  const handleRequestBoardByUniqueId = async () => {
+    if (!searchBoardId.trim()) {
+      Alert.alert('Enter board ID', 'Please enter the unique board ID to request access.');
+      return;
+    }
+
+    try {
+      setRequestingJoin(true);
+      const userName = await AsyncStorage.getItem('username');
+      if (!userName) {
+        throw new Error('Username not found. Please register first.');
+      }
+
+      await APIHandler.requestBoardMembership(searchBoardId.trim(), userName);
+      Alert.alert('Request sent', 'Your request to join the board has been submitted.');
+      setSearchBoardId('');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to request board access';
+      setError(errorMessage);
+      console.error('Request board join error:', err);
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setRequestingJoin(false);
+    }
+  };
+
+  const loadBoards = async (showFullScreenLoading: boolean = false) => {
   try {
     if (showFullScreenLoading) {
       setLoading(true);
@@ -168,6 +195,29 @@ const renderBoardCard = (board: MessageBoard) => (
           <ThemedText type="subtitle" style={styles.subtitle}>
             Select a board to join
           </ThemedText>
+
+          <ThemedView style={styles.requestSection}>
+            <ThemedText style={styles.requestLabel}>Request access to a private board</ThemedText>
+            <TextInput
+              value={searchBoardId}
+              onChangeText={setSearchBoardId}
+              placeholder="Enter unique board ID"
+              placeholderTextColor="#8E95A8"
+              style={styles.searchInput}
+              autoCapitalize="none"
+            />
+            <Button
+              showText={true}
+              buttonText={requestingJoin ? 'Requesting...' : 'Request Access'}
+              onPress={handleRequestBoardByUniqueId}
+              disabled={requestingJoin}
+              style={styles.requestButton}
+              textStyle={styles.requestButtonText}
+            />
+            <ThemedText style={styles.requestHint}>
+              Use the unique board ID for private boards only.
+            </ThemedText>
+          </ThemedView>
         </ThemedView>
 
         {error ? (
@@ -309,7 +359,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.6,
   },
-
+  requestSection: {
+    marginTop: Spacing.four,
+    gap: Spacing.two,
+  },
+  requestLabel: {
+    fontSize: 14,
+    opacity: 0.8,
+  },
+  searchInput: {
+    backgroundColor: '#1c1c1e',
+    borderColor: '#444',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    color: '#ffffff',
+  },
+  requestButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+    alignSelf: 'flex-start',
+  },
+  requestButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  requestHint: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginTop: Spacing.one,
+  },
   boardCardWrapper: {
     marginBottom: Spacing.three,
   },

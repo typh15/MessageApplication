@@ -15,5 +15,7 @@ public interface IChatService
     Task<bool> AddUserToRequests(string boardName, string uniqueId, string userAddress, bool allowed);
     Task<bool> ApproveUserJoinRequest(int boardId, string MemberUniqueId, string userName);
     Task<bool> CheckIfUserCanRequest(RequestJoinBoardRequest request);
+    Task<bool> IsUserActiveAsync(string uniqueId);
+    Task<List<JoinBoardRequestDisplay>?> GetBoardJoinRequestsAsync(int boardId, string uniqueId);
 
 }

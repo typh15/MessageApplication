@@ -10,8 +10,10 @@ public class MessageBoard
     public int MostRecentMessageHash { get; set; }
     public ActiveUser[] UserRequests {get; set;}
     public string? UniqueBoardId { get; set; }
+    public ActiveUser[] UserInvites { get; set; }
 
-    public MessageBoard(int boardId, string boardName, ActiveUser[] activeUsers,  ChatMessage[] chatMessages, bool visibleToPublic, bool passwordProtected, string password, ActiveUser[] userRequests, string? uniqueBoardId = "")
+
+    public MessageBoard(int boardId, string boardName, ActiveUser[] activeUsers,  ChatMessage[] chatMessages, bool visibleToPublic, bool passwordProtected, string password, ActiveUser[] userRequests, ActiveUser[] userInvites, string? uniqueBoardId = "")
     {
         BoardId = boardId;
         BoardName = boardName;
@@ -23,5 +25,6 @@ public class MessageBoard
         MostRecentMessageHash = 0;
         UserRequests = userRequests;
         UniqueBoardId = uniqueBoardId;
+        UserInvites = userInvites;
     }
 }

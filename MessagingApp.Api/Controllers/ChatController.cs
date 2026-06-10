@@ -83,6 +83,12 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> CreateMessageBoardAsync(
         [FromBody] CreateMessageBoardRequest request)
     {
+
+        if (string.IsNullOrWhiteSpace(request.UniqueId))
+        {
+            return BadRequest("No UniqueId Found.");
+        }
+
         var board = await chatService.CreateMessageBoardAsync(
             request.UniqueId,
             request.BoardName,
@@ -233,18 +239,109 @@ public class ChatController : ControllerBase
     }
 
 
-[HttpGet("/message-boards/{boardId}/requests")]
-public async Task<IActionResult> GetBoardJoinRequestsAsync(
-    int boardId,
-    string memberUniqueId)
-{
-    var requests = await chatService.GetBoardJoinRequestsAsync(boardId, memberUniqueId);
-
-    if (requests == null)
+    [HttpGet("/message-boards/{boardId}/requests")]
+    public async Task<IActionResult> GetBoardJoinRequestsAsync(
+        int boardId,
+        string memberUniqueId)
     {
-        return BadRequest("Unable to load join requests.");
+        var requests = await chatService.GetBoardJoinRequestsAsync(boardId, memberUniqueId);
+
+        if (requests == null)
+        {
+            return BadRequest("Unable to load join requests.");
+        }
+
+        return Ok(requests);
     }
 
-    return Ok(requests);
-}
+    [HttpPost("/message-boards/{boardId}/invites")]
+    public async Task<IActionResult> AttemptMessageBoardInviteAsync(
+        int boardId,
+        string memberUniqueId,
+        string inviteUserName)
+    {   
+        var success = await chatService.InviteUserJoinRequest(
+            boardId,
+            memberUniqueId,
+            inviteUserName
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to invite user to message board.");
+        }
+
+        return Ok();
+    }
+
+
+    [HttpGet("/active-users/{uniqueId}/invites")]
+    public async Task<IActionResult> GetUserInvitesAsync(string uniqueId)
+    {
+        var invites = await chatService.GetUserInvitesAsync(uniqueId);
+
+        if (invites == null)
+        {
+            return BadRequest("Unable to load invitations.");
+        }
+
+        return Ok(invites);
+    }
+
+    [HttpPost("/message-boards/{boardId}/invites/accept")]
+    public async Task<IActionResult> AcceptMessageBoardInviteAsync(
+        int boardId,
+        string uniqueId)
+        {
+        var success = await chatService.AcceptBoardInvite(
+            boardId,
+            uniqueId
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to accept board invite.");
+        }
+
+        return Ok();
+    }
+
+    [HttpPost("/message-boards/{boardId}/invites/reject")]
+    public async Task<IActionResult> RejectMessageBoardInviteAsync(
+        int boardId,
+        string uniqueId)
+        {
+        var success = await chatService.RejectBoardInvite(
+            boardId,
+            uniqueId
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to reject board invite.");
+        }
+
+        return Ok();
+    }
+[HttpPost("/message-boards/join-by-code")]
+    public async Task<IActionResult> JoinMessageBoardByCodeAsync(
+        [FromBody] JoinBoardByCodeRequest request)
+    {
+        var userAddress =
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        var success = await chatService.JoinBoardByCodeAsync(
+            request.UniqueBoardId,
+            request.UniqueId,
+            request.Password,
+            userAddress
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to join message board.");
+        }
+
+        return Ok();
+    }
 }

@@ -70,4 +70,14 @@ class ActiveUserRepository : IActiveUserRepository
         activeUsers.RemoveAll(u => (now - u.LastActiveTime) > inactivityThreshold);
         return Task.CompletedTask;
     }
+
+    public Task<List<int>> GetAllInvitedBoardIds(string uniqueId)
+    {
+        var user = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
+        if (user == null)
+        {
+            return Task.FromResult<List<int>>([]);
+        }
+        return Task.FromResult(user.InvitedMessageBoardIds);
+    }
 }

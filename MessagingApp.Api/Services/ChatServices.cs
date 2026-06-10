@@ -299,7 +299,23 @@ public class ChatService : IChatService
                 }
                 else
                 {
-                    return false;
+                    if (!board.PasswordProtected)
+                        {
+                            return true;
+                        }
+                    else
+                    {
+                        if (request.Password == null)
+                        {
+                            return false;
+                        }
+                        else
+                        {
+                            var correctPassword = await messageBoardRepository.CheckBoardPasswordAsync(boardId, request.Password);
+                            return correctPassword;
+                        }
+                    }
+                    
                 }
             }
             
@@ -382,11 +398,17 @@ public class ChatService : IChatService
         
         bool userIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser);
         bool userIsAlreadyInRequests = await messageBoardRepository.CheckUserInRequestedListAsync(boardId, activeUser);
-        if (!userIsAlreadyInBoard && !userIsAlreadyInRequests)
+        if (userIsAlreadyInBoard)
         {
-            
-            await messageBoardRepository.AddUserToRequestedListAsync(boardId, activeUser);
+            return false;
         }
+
+        if (userIsAlreadyInRequests)
+        {
+            return false;
+        }
+        
+        await messageBoardRepository.AddUserToRequestedListAsync(boardId, activeUser);
         return true;
 
         
@@ -436,13 +458,19 @@ public class ChatService : IChatService
         bool MemberIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeMember);
         bool userIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, reqestingUser);
         
-        if (!userIsAlreadyInBoard && MemberIsAlreadyInBoard)
+        if (userIsAlreadyInBoard)
         {
-            await messageBoardRepository.RemoveUserFromRequestAsync(boardId, reqestingUser);
-            await messageBoardRepository.AddUserToBoardAsync(boardId, reqestingUser);
+            return false;
+        }
+        if (!MemberIsAlreadyInBoard)
+        {
+            return false;
         }
 
-        return true;
+        var removedUser = await messageBoardRepository.RemoveUserFromRequestAsync(boardId, reqestingUser);
+        var addedUser = await messageBoardRepository.AddUserToBoardAsync(boardId, reqestingUser);
+
+        return removedUser && addedUser;
     }
 
     public async Task<List<String>> GetPublicBoardNames()
@@ -464,35 +492,231 @@ public class ChatService : IChatService
 
         return await activeUserRepository.IsUserActiveAsync(uniqueId);
     }
-public async Task<List<JoinBoardRequestDisplay>?> GetBoardJoinRequestsAsync(
-    int boardId,
-    string memberUniqueId
-)
-{
-    var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
-
-    if (board == null)
+    public async Task<List<JoinBoardRequestDisplay>?> GetBoardJoinRequestsAsync(
+        int boardId,
+        string memberUniqueId
+    )
     {
-        return null;
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+
+        if (board == null)
+        {
+            return null;
+        }
+
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+        var member = activeUsers.FirstOrDefault(user => user.UniqueId == memberUniqueId);
+
+        if (member == null)
+        {
+            return null;
+        }
+
+        var memberIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, member);
+
+        if (!memberIsInBoard)
+        {
+            return null;
+        }
+
+        return board.UserRequests
+            .Select(user => new JoinBoardRequestDisplay(user.UserName, user.UniqueId))
+            .ToList();
     }
 
-    var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
-    var member = activeUsers.FirstOrDefault(user => user.UniqueId == memberUniqueId);
-
-    if (member == null)
+    public async Task<bool> InviteUserJoinRequest(
+        int boardId,
+        string memberUniqueId,
+        string inviteUserName
+    )
     {
-        return null;
+        if (string.IsNullOrWhiteSpace(memberUniqueId) || string.IsNullOrWhiteSpace(inviteUserName))
+        {
+            return false;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+
+        if (board == null)
+        {
+            return false;
+        }
+
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+        var member = activeUsers.FirstOrDefault(user => user.UniqueId == memberUniqueId);
+        var invitedUser = activeUsers.FirstOrDefault(user =>
+            string.Equals(user.UserName, inviteUserName, StringComparison.OrdinalIgnoreCase)
+        );
+
+        if (member == null || invitedUser == null)
+        {
+            return false;
+        }
+
+        if (member.UniqueId == invitedUser.UniqueId)
+        {
+            return false;
+        }
+
+        var memberIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, member);
+
+        if (!memberIsInBoard)
+        {
+            return false;
+        }
+
+        var invitedUserIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, invitedUser);
+        var invitedUserAlreadyInvited = await messageBoardRepository.CheckUserInInvitesListAsync(boardId, invitedUser);
+
+        if (invitedUserIsAlreadyInBoard || invitedUserAlreadyInvited)
+        {
+            return false;
+        }
+
+        return await messageBoardRepository.AddUserToInvitesListAsync(boardId, invitedUser);
     }
 
-    var memberIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, member);
-
-    if (!memberIsInBoard)
+    public async Task<List<MessageBoardInviteResponse>?> GetUserInvitesAsync(string uniqueId)
     {
-        return null;
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return null;
+        }
+
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (activeUser == null)
+        {
+            return null;
+        }
+
+        var invitedBoardIds = await activeUserRepository.GetAllInvitedBoardIds(uniqueId);
+        var invites = new List<MessageBoardInviteResponse>();
+
+        foreach (var boardId in invitedBoardIds)
+        {
+            var boardData = await messageBoardRepository.GetMessageBoardDataByIdAsync(boardId);
+
+            if (boardData != null)
+            {
+                invites.Add(new MessageBoardInviteResponse(
+                    boardData.BoardId,
+                    boardData.BoardName,
+                    boardData.UniqueBoardId
+                ));
+            }
+        }
+
+        return invites;
     }
 
-    return board.UserRequests
-        .Select(user => new JoinBoardRequestDisplay(user.UserName, user.UniqueId))
-        .ToList();
-}
+    public async Task<bool> AcceptBoardInvite(int boardId, string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (board == null || activeUser == null)
+        {
+            return false;
+        }
+
+        var userIsInvited = await messageBoardRepository.CheckUserInInvitesListAsync(boardId, activeUser);
+
+        if (!userIsInvited)
+        {
+            return false;
+        }
+
+        var userIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser);
+
+        if (!userIsAlreadyInBoard)
+        {
+            var added = await messageBoardRepository.AddUserToBoardAsync(boardId, activeUser);
+
+            if (!added)
+            {
+                return false;
+            }
+        }
+
+        return await messageBoardRepository.RemoveUserFromInviteAsync(boardId, activeUser);
+    }
+
+    public async Task<bool> RejectBoardInvite(int boardId, string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (board == null || activeUser == null)
+        {
+            return false;
+        }
+
+        var userIsInvited = await messageBoardRepository.CheckUserInInvitesListAsync(boardId, activeUser);
+
+        if (!userIsInvited)
+        {
+            return false;
+        }
+
+        return await messageBoardRepository.RemoveUserFromInviteAsync(boardId, activeUser);
+    }
+
+    public async Task<bool> JoinBoardByCodeAsync(string uniqueBoardId, string uniqueId, string password, string userAddress)
+    {
+        if (
+            string.IsNullOrWhiteSpace(uniqueBoardId) ||
+            string.IsNullOrWhiteSpace(uniqueId) ||
+            string.IsNullOrWhiteSpace(password)
+        )
+        {
+            return false;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByUIdAsync(uniqueBoardId);
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (board == null || activeUser == null)
+        {
+            return false;
+        }
+
+        if (!board.PasswordProtected)
+        {
+            return false;
+        }
+
+        var passwordIsCorrect =
+            await messageBoardRepository.CheckBoardPasswordAsync(board.BoardId, password);
+
+        if (!passwordIsCorrect)
+        {
+            return false;
+        }
+
+        activeUser.LastActiveTime = DateTime.UtcNow;
+        activeUser.Address = userAddress;
+        await activeUserRepository.UpdateActiveUserAsync(activeUser);
+
+        var userIsAlreadyInBoard =
+            await messageBoardRepository.CheckUserInBoardAsync(board.BoardId, activeUser);
+
+        if (userIsAlreadyInBoard)
+        {
+            return true;
+        }
+
+        return await messageBoardRepository.AddUserToBoardAsync(board.BoardId, activeUser);
+    }
+    
 }

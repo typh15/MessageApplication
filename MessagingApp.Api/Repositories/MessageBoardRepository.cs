@@ -48,6 +48,7 @@ class MessageBoardRepository : IMessageBoardRepository
             passwordProtected,
             password,
             Array.Empty<ActiveUser>(),
+            Array.Empty<ActiveUser>(),
             newUniqueBoardId
         );
         var newDataResponse = new MessageBoardDataResponse(
@@ -155,6 +156,16 @@ class MessageBoardRepository : IMessageBoardRepository
                 var user = messageBoard.ActiveUsers[i];
                 user.MessageBoardIds.Remove(boardid);
             }
+            for (int i = 0; i < messageBoard.UserRequests.Length; i++)
+            {
+                var user = messageBoard.UserRequests[i];
+                user.RequestedMessageBoardIds.Remove(boardid);
+            }
+            for (int i = 0; i < messageBoard.UserInvites.Length; i++)
+            {
+                var user = messageBoard.UserInvites[i];
+                user.InvitedMessageBoardIds.Remove(boardid);
+            }
 
             messageBoards.Remove(messageBoard);
             if (boardDataRespose != null)
@@ -218,6 +229,23 @@ class MessageBoardRepository : IMessageBoardRepository
         return Task.FromResult(false);
     }
 
+    public Task<bool> RemoveUserFromInviteAsync(int boardid, ActiveUser user)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+        if (messageBoard != null)
+        {
+            var existingUser = messageBoard.UserInvites.FirstOrDefault(u => u.UniqueId == user.UniqueId);
+            if (existingUser != null)
+            {
+                messageBoard.UserInvites = messageBoard.UserInvites.Where(u => u.UniqueId != user.UniqueId).ToArray();
+                user.InvitedMessageBoardIds.Remove(boardid);
+
+                return Task.FromResult(true);
+            }
+        }
+        return Task.FromResult(false);
+    }
+
     public Task<bool> DeleteMessageAsync(int boardid, int messageid)
     {
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
@@ -243,6 +271,16 @@ class MessageBoardRepository : IMessageBoardRepository
         }
         return Task.FromResult(false);
     }
+
+    public Task<bool> CheckBoardPasswordAsync(int boardid, string password)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+        if (messageBoard != null)
+        {
+            return Task.FromResult(messageBoard.Password == password);
+        }
+        return Task.FromResult(false);
+    }
     
     public Task<bool> CheckUserInRequestedListAsync(int boardid, ActiveUser user)
     {
@@ -255,15 +293,6 @@ class MessageBoardRepository : IMessageBoardRepository
         return Task.FromResult(false);
     }
 
-    public Task<bool> CheckBoardPasswordAsync(int boardid, string password)
-    {
-        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
-        if (messageBoard != null)
-        {
-            return Task.FromResult(messageBoard.Password == password);
-        }
-        return Task.FromResult(false);
-    }
     public async Task<bool> AddUserToRequestedListAsync(
         int boardid,
         ActiveUser requestingUser)
@@ -294,6 +323,50 @@ class MessageBoardRepository : IMessageBoardRepository
         }
         messageBoard.UserRequests = messageBoard.UserRequests.Append(requestingUser).ToArray();
         requestingUser.RequestedMessageBoardIds.Add(boardid);
+
+        return true;
+    }
+    
+    public Task<bool> CheckUserInInvitesListAsync(int boardid, ActiveUser user)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+        if (messageBoard != null)
+        {
+            var existingUserInvite = messageBoard.UserInvites.FirstOrDefault(u => u.UserName == user.UserName);
+            return Task.FromResult(existingUserInvite != null);
+        }
+        return Task.FromResult(false);
+    }
+    public async Task<bool> AddUserToInvitesListAsync(
+        int boardid,
+        ActiveUser invitedUser)
+    {
+        var messageBoard = messageBoards.FirstOrDefault(
+            board => board.BoardId == boardid
+        );
+
+        if (messageBoard == null)
+        {
+            return false;
+        }
+
+        bool userInBoard = await CheckUserInBoardAsync(boardid, invitedUser);
+
+        if (userInBoard)
+        {
+            return false;
+        }
+
+        bool userAlreadyInvited = messageBoard.UserInvites.Any(
+            user => user.UniqueId == invitedUser.UniqueId
+        );
+
+        if (userAlreadyInvited)
+        {
+            return false;
+        }
+        messageBoard.UserInvites = messageBoard.UserInvites.Append(invitedUser).ToArray();
+        invitedUser.InvitedMessageBoardIds.Add(boardid);
 
         return true;
     }

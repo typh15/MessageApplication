@@ -272,52 +272,38 @@ public class ChatService : IChatService
         }
 
         else
-        {   
+        {  
             if (board.ActiveUsers.Contains(activeUser))
             {
                 return true;
             }
-            else
+
+            if (board.VisibleToPublic)
             {
-                if (board.VisibleToPublic) {
-                    if (!board.PasswordProtected)
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        if (request.Password == null)
-                        {
-                            return false;
-                        }
-                        else
-                        {
-                            var correctPassword = await messageBoardRepository.CheckBoardPasswordAsync(boardId, request.Password);
-                            return correctPassword;
-                        }
-                    }
-                }
-                else
+                if (!board.PasswordProtected)
                 {
-                    if (!board.PasswordProtected)
-                        {
-                            return true;
-                        }
-                    else
-                    {
-                        if (request.Password == null)
-                        {
-                            return false;
-                        }
-                        else
-                        {
-                            var correctPassword = await messageBoardRepository.CheckBoardPasswordAsync(boardId, request.Password);
-                            return correctPassword;
-                        }
-                    }
-                    
+                    return true;
                 }
+
+                if (string.IsNullOrWhiteSpace(request.Password))
+                {
+                    return false;
+                }
+
+                return await messageBoardRepository.CheckBoardPasswordAsync(boardId, request.Password);
             }
+
+            if (!board.PasswordProtected)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Password))
+            {
+                return false;
+            }
+
+            return await messageBoardRepository.CheckBoardPasswordAsync(boardId, request.Password);
             
         }
         
@@ -468,7 +454,9 @@ public class ChatService : IChatService
         }
 
         var removedUser = await messageBoardRepository.RemoveUserFromRequestAsync(boardId, reqestingUser);
+        await messageBoardRepository.RemoveUserFromInviteAsync(boardId, reqestingUser);
         var addedUser = await messageBoardRepository.AddUserToBoardAsync(boardId, reqestingUser);
+
 
         return removedUser && addedUser;
     }
@@ -643,7 +631,7 @@ public class ChatService : IChatService
                 return false;
             }
         }
-
+        await messageBoardRepository.RemoveUserFromRequestAsync(boardId, activeUser);
         return await messageBoardRepository.RemoveUserFromInviteAsync(boardId, activeUser);
     }
 
@@ -669,6 +657,7 @@ public class ChatService : IChatService
             return false;
         }
 
+        await messageBoardRepository.RemoveUserFromRequestAsync(boardId, activeUser);
         return await messageBoardRepository.RemoveUserFromInviteAsync(boardId, activeUser);
     }
 

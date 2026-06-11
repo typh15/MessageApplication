@@ -97,9 +97,10 @@ public class ChatController : ControllerBase
             request.Password
         );
 
+
         if (board == null)
         {
-            return BadRequest("Public board with that name already exists.");
+            return BadRequest("Unable to create board.");
         }
 
         return Ok(board);
@@ -323,7 +324,8 @@ public class ChatController : ControllerBase
 
         return Ok();
     }
-[HttpPost("/message-boards/join-by-code")]
+
+    [HttpPost("/message-boards/join-by-code")]
     public async Task<IActionResult> JoinMessageBoardByCodeAsync(
         [FromBody] JoinBoardByCodeRequest request)
     {

@@ -1,10 +1,24 @@
 
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 
 
 class MessageBoardRepository : IMessageBoardRepository
 {
     private readonly List<MessageBoard> messageBoards = new List<MessageBoard>();
     private readonly List<MessageBoardDataResponse> dataResponse = new List<MessageBoardDataResponse>();
+    
+    public string GetStringSha256Hash(string text)
+    {
+        if (String.IsNullOrEmpty(text))
+            return String.Empty;
+
+        using (var sha = new System.Security.Cryptography.SHA256Managed())
+        {
+            byte[] textData = System.Text.Encoding.UTF8.GetBytes(text);
+            byte[] hash = sha.ComputeHash(textData);
+            return BitConverter.ToString(hash).Replace("-", String.Empty);
+        }
+    }
 
     public int GetNextBoardId()
     {
@@ -33,9 +47,10 @@ class MessageBoardRepository : IMessageBoardRepository
     }
 
 
+
     public Task<MessageBoardDataResponse?> CreateMessageBoardAsync(ActiveUser user, string boardName, bool visibleToPublic, bool passwordProtected, string password)
     {
-        
+
         var newBoardId = GetNextBoardId();
         var newUniqueBoardId = IdGenerator.Get8CharId();
         user.MessageBoardIds.Add(newBoardId);
@@ -46,7 +61,7 @@ class MessageBoardRepository : IMessageBoardRepository
             Array.Empty<ChatMessage>(),
             visibleToPublic,
             passwordProtected,
-            password,
+            GetStringSha256Hash(password),
             Array.Empty<ActiveUser>(),
             Array.Empty<ActiveUser>(),
             newUniqueBoardId
@@ -277,7 +292,7 @@ class MessageBoardRepository : IMessageBoardRepository
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
         if (messageBoard != null)
         {
-            return Task.FromResult(messageBoard.Password == password);
+            return Task.FromResult(GetStringSha256Hash(messageBoard.Password) == password);
         }
         return Task.FromResult(false);
     }

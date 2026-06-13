@@ -5,7 +5,17 @@ class UserAccountRepository : IUserAccountRepository
 
     public Task<bool> AddUserAccountAsync(UserAccount userAccount)
     {
-        var existingAccount = userAccounts.Find(u => u.UniqueId == userAccount.UniqueId);
+        if (userAccount == null ||
+            string.IsNullOrWhiteSpace(userAccount.UniqueId) ||
+            string.IsNullOrWhiteSpace(userAccount.AuthId))
+        {
+            return Task.FromResult(false);
+        }
+
+        var existingAccount = userAccounts.Find(u =>
+            u.UniqueId == userAccount.UniqueId ||
+            u.AuthId == userAccount.AuthId);
+
         if (existingAccount == null)
         {
             userAccounts.Add(userAccount);

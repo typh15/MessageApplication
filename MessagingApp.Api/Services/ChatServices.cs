@@ -4,11 +4,15 @@ public class ChatServices : IChatServices
 {
     private readonly IMessageBoardRepository messageBoardRepository;
     private readonly IActiveUserRepository activeUserRepository;
+    private readonly IImageServices imageServices;
 
-    public ChatServices(IMessageBoardRepository messageBoardRepository, IActiveUserRepository activeUserRepository)
+    public ChatServices(IMessageBoardRepository messageBoardRepository, 
+                        IActiveUserRepository activeUserRepository,
+                        IImageServices imageServices)
     {
         this.messageBoardRepository = messageBoardRepository;
         this.activeUserRepository = activeUserRepository;
+        this.imageServices = imageServices;
     }
 
     public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
@@ -117,7 +121,13 @@ public class ChatServices : IChatServices
         return board.ChatMessages.ToList();
     }
 
-    public async Task<CreateActiveUserResponse?> CreateActiveUserAsync(string userName, string userAddress)
+    public async Task<CreateActiveUserResponse?> CreateAnonymousActiveUserAsync(string userName, string userAddress)
+    {
+        string uniqueId = Guid.NewGuid().ToString();
+        return await CreateActiveUserAsync(userName, userAddress, uniqueId);
+    }
+
+    public async Task<CreateActiveUserResponse?> CreateActiveUserAsync(string userName, string userAddress, string uniqueId)
     {
         bool doesUserNameExist = await activeUserRepository.DoesUserExistAsync(userName);
         
@@ -126,7 +136,10 @@ public class ChatServices : IChatServices
             return null;
         }
 
-        string uniqueId = Guid.NewGuid().ToString();
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return null;
+        }
         
         var activeUser = new ActiveUser(
             userName,
@@ -135,7 +148,11 @@ public class ChatServices : IChatServices
             uniqueId
         );
 
-        await activeUserRepository.AddActiveUserAsync(activeUser);
+        var activeUserWasAdded = await activeUserRepository.AddActiveUserAsync(activeUser);
+        if (!activeUserWasAdded)
+        {
+            return null;
+        }
 
         return new CreateActiveUserResponse(userName, uniqueId);
     }
@@ -186,13 +203,40 @@ public class ChatServices : IChatServices
 
         int messageId = messageBoardRepository.GetNextMessageId(boardId);
 
+        if (request.MessageType == MessageTypeEnum.image)
+        {
+            if (string.IsNullOrWhiteSpace(request.ImageId))
+            {
+                return null;
+            }
+
+            var image = await imageServices.GetImageAsync(request.ImageId);
+
+            if (image == null)
+            {
+                return null;
+            }
+
+            if (image.OwnerUniqueId != uniqueId)
+            {
+                return null;
+            }
+        }
+
+        if (request.MessageType == MessageTypeEnum.text)
+        {
+            request.ImageId = null;
+        }
+
         var chatMessage = new ChatMessage(
             messageId,
-            request.FromUserName,
+            activeUser.UserName,
             boardId,
             request.LocalTimestamp,
             DateTime.UtcNow,
-            request.Content
+            request.Content,
+            request.MessageType,
+            request.ImageId
         );
 
 
@@ -255,9 +299,39 @@ public class ChatServices : IChatServices
         return true;
     }
 
-    public async Task<bool> DeleteMessageAsync(int boardId, int messageId)
+    public async Task<bool> DeleteMessageAsync(string uniqueId, int boardId, int messageId)
     {
-        return await messageBoardRepository.DeleteMessageAsync(boardId, messageId);
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+        var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
+        var message = await messageBoardRepository.GetMessageByIdAsync(boardId, messageId);
+
+        if (board == null)
+        {
+            return false;
+        }
+
+        if (message == null)
+        {
+            return false;
+        }
+
+        if (activeUser == null)
+        {
+            return false;
+        }
+
+        if (board.ActiveUsers.Contains(activeUser))
+        {
+            if (message.FromUserName == activeUser.UserName)
+            {
+                return await messageBoardRepository.DeleteMessageAsync(boardId, messageId);
+            }
+        }
+
+        return false;
+
+        
     }
 
     public async Task<bool> CheckIfUserCanJoin(int boardId, string uniqueId, JoinBoardRequest request)

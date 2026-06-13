@@ -5,4 +5,6 @@ public class CreateChatMessageRequest
     public DateTime LocalTimestamp { get; set; } = DateTime.UtcNow;
     public string Content { get; set; } = string.Empty;
     public string UniqueId { get; set; } = string.Empty;
+    public MessageTypeEnum MessageType { get; set; } = MessageTypeEnum.text;
+    public string? ImageId { get; set; }
 }

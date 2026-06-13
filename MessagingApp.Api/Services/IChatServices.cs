@@ -6,10 +6,11 @@ public interface IChatServices
     Task<List<ActiveUser>> GetAllActiveUsersAsync();
     Task<List<String>> GetAllActiveUserNames();
     Task<List<ChatMessage>> GetMessagesForBoardAsync(int boardId);
-    Task<CreateActiveUserResponse?> CreateActiveUserAsync(string userName, string userAddress);
+    Task<CreateActiveUserResponse?> CreateAnonymousActiveUserAsync(string userName, string userAddress);
+    Task<CreateActiveUserResponse?> CreateActiveUserAsync(string userName, string userAddress, string uniqueId);
     Task<SendMessageResponse?> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress);
     Task<bool> JoinBoardAsync(int boardId, string uniqueId, string userAddress, bool allowed);
-    Task<bool> DeleteMessageAsync(int boardId, int messageId);
+    Task<bool> DeleteMessageAsync(string uniqueId, int boardId, int messageId);
     Task<bool> CheckIfUserCanJoin(int boardId, string uniqueId, JoinBoardRequest request);
     Task<bool> CheckIfUserCanRequest(RequestJoinBoardRequest request);
     Task<bool> AddUserToRequests(string uniqueBoardId, string uniqueId, string userAddress, bool allowed);

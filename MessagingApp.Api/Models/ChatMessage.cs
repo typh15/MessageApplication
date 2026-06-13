@@ -8,12 +8,14 @@ public class ChatMessage
     public string Content { get; set; }
     public string GlobalId { get; set; }
     public int Hash{ get; set; }
-
+    public MessageTypeEnum MessageType { get; set; } = MessageTypeEnum.text;
+    public string? ImageId { get; set; }
 
 
     public ChatMessage(int id, string fromUserName, 
     int boardId, DateTime clientTimestamp, 
-    DateTime serverTimestamp, string content)
+    DateTime serverTimestamp, string content, 
+    MessageTypeEnum messageType, string? imageId)
     {
         Id = id;
         FromUserName = fromUserName;
@@ -21,8 +23,11 @@ public class ChatMessage
         ClientTimestamp = clientTimestamp;
         ServerTimestamp = serverTimestamp;
         Content = content;
+        
         GlobalId = "";
         Hash = HashCode.Combine(Id, FromUserName, BoardId, ClientTimestamp, ServerTimestamp, Content);
+        MessageType = messageType;
+        ImageId = imageId;
     }
 
     public void AssignGlobalId()

@@ -5,6 +5,7 @@ public class ActiveUsersController : ControllerBase
 {
     private readonly IChatServices chatService;
 
+
     public ActiveUsersController(IChatServices chatService)
     {
         this.chatService = chatService;
@@ -12,14 +13,14 @@ public class ActiveUsersController : ControllerBase
 
     
     
-    [HttpPost("/active-users")]
-    public async Task<IActionResult> CreateActiveUserAsync(
+    [HttpPost("/anonymous-users")]
+    public async Task<IActionResult> CreateAnonymousActiveUserAsync(
         [FromBody] CreateActiveUserRequest request)
     {
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        var result = await chatService.CreateActiveUserAsync(
+        var result = await chatService.CreateAnonymousActiveUserAsync(
             request.UserName,
             userAddress
         );

@@ -131,7 +131,9 @@ class MessageBoardRepository : IMessageBoardRepository
                 boardid,
                 chatMessage.ClientTimestamp,
                 chatMessage.ServerTimestamp,
-                chatMessage.Content
+                chatMessage.Content,
+                chatMessage.MessageType,
+                chatMessage.ImageId
             );
             messageBoard.ChatMessages = messageBoard.ChatMessages.Append(newChatMessage).ToArray();
             newChatMessage.AssignGlobalId();

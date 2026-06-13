@@ -42,6 +42,11 @@ public class UserAccountsController : ControllerBase
         string uniqueId,
         [FromBody] UpdateAccountDataRequest request)
     {
+        if (request == null)
+        {
+            return BadRequest("Account update data is required.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.DisplayName))
         {
             return BadRequest("Display name is required.");
@@ -64,6 +69,11 @@ public class UserAccountsController : ControllerBase
         string uniqueId,
         [FromBody] UpdateAccountDataRequest request)
     {
+        if (request == null)
+        {
+            return BadRequest("Account update data is required.");
+        }
+
         if (request.PublicBlurb == null)
         {
             return BadRequest("Public blurb is required.");
@@ -86,6 +96,11 @@ public class UserAccountsController : ControllerBase
         string uniqueId,
         [FromBody] UpdateAccountDataRequest request)
     {
+        if (request == null)
+        {
+            return BadRequest("Account update data is required.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.AvatarImageId))
         {
             return BadRequest("Avatar image ID is required.");

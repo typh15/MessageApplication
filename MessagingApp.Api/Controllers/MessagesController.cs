@@ -53,9 +53,12 @@ public class MessagesController : ControllerBase
     [HttpDelete("/message-boards/{boardId}/messages/{messageId}")]
     public async Task<IActionResult> DeleteMessageAsync(
         int boardId,
-        int messageId)
+        int messageId,
+        string uniqueId)
     {
+
         bool wasDeleted = await chatService.DeleteMessageAsync(
+            uniqueId,
             boardId,
             messageId
         );

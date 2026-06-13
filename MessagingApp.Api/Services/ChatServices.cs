@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Identity;
 
-public class ChatService : IChatService
+public class ChatServices : IChatServices
 {
     private readonly IMessageBoardRepository messageBoardRepository;
     private readonly IActiveUserRepository activeUserRepository;
 
-    public ChatService(IMessageBoardRepository messageBoardRepository, IActiveUserRepository activeUserRepository)
+    public ChatServices(IMessageBoardRepository messageBoardRepository, IActiveUserRepository activeUserRepository)
     {
         this.messageBoardRepository = messageBoardRepository;
         this.activeUserRepository = activeUserRepository;

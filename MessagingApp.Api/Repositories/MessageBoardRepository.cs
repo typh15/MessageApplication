@@ -12,7 +12,7 @@ class MessageBoardRepository : IMessageBoardRepository
         if (String.IsNullOrEmpty(text))
             return String.Empty;
 
-        using (var sha = new System.Security.Cryptography.SHA256Managed())
+        using (var sha = System.Security.Cryptography.SHA256.Create())
         {
             byte[] textData = System.Text.Encoding.UTF8.GetBytes(text);
             byte[] hash = sha.ComputeHash(textData);
@@ -292,7 +292,7 @@ class MessageBoardRepository : IMessageBoardRepository
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
         if (messageBoard != null)
         {
-            return Task.FromResult(GetStringSha256Hash(messageBoard.Password) == password);
+            return Task.FromResult(messageBoard.Password == GetStringSha256Hash(password));
         }
         return Task.FromResult(false);
     }

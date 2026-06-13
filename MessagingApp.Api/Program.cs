@@ -11,7 +11,13 @@ builder.Services.AddControllers();
 
 builder.Services.AddSingleton<IActiveUserRepository, ActiveUserRepository>();
 builder.Services.AddSingleton<IMessageBoardRepository, MessageBoardRepository>();
-builder.Services.AddSingleton<IChatService, ChatService>();
+builder.Services.AddSingleton<IChatServices, ChatServices>();
+
+builder.Services.AddSingleton<IUserAccountRepository, UserAccountRepository>();
+builder.Services.AddSingleton<IAccountServices, AccountServices>();
+
+builder.Services.AddSingleton<IImageRepository, ImageRepository>();
+builder.Services.AddSingleton<IImageServices, ImageServices>();
 
 builder.Services.AddCors(options =>
 {
@@ -24,6 +30,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+var imageServices = app.Services.GetRequiredService<IImageServices>();
+await imageServices.ClearStoredImagesAsync();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

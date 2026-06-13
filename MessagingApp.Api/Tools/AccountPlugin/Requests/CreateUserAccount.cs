@@ -1,4 +1,4 @@
-public class UserAccount
+public class CreateUserAccount
 {
     public string UniqueId { get; set; }
     public string AuthId { get; set; }
@@ -6,7 +6,7 @@ public class UserAccount
     public string? AvatarImageId { get; set; }
     public string? PublicBlurb { get; set; }
 
-    public UserAccount(string uniqueId, string authId)
+    public CreateUserAccount(string uniqueId, string authId)
     {
         UniqueId = uniqueId;
         AuthId = authId;

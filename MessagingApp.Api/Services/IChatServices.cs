@@ -1,4 +1,4 @@
-public interface IChatService
+public interface IChatServices
 {
     Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId);
     Task<MessageBoardDataResponse?> GetMessageBoardByIdAsync(int boardId, string uniqueId);

@@ -1,4 +1,4 @@
-import Message_Class from "./components/Models/Message_Class";
+import Message_Class from "./components/Models/message-class";
 
 class Message_Repo {
   private messages: Message_Class[] = [];

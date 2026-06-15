@@ -1,20 +1,19 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
-
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { Button } from '@/components/ui/Button';
-import * as APIHandler from '@/ApiHandler';
+import { Button } from '@/components/ui/generic-button';
+import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useBoardDetails } from '@/hooks/API/use-board-details';
+import { useBoardJoinRequests } from '@/hooks/API/use-board-join-requests';
 import { useTheme } from '@/hooks/use-theme';
 
 interface ApprovalUser {
     userName: string;
-    uniqueId?: string;
     address?: string;
 }
 
@@ -22,75 +21,40 @@ export default function ApprovalRequestsScreen() {
     const params = useLocalSearchParams();
     const rawBoardId = params.boardId as string | undefined;
     const boardId = rawBoardId ? parseInt(rawBoardId) : NaN;
+    const isValidBoardId = !!rawBoardId && Number.isFinite(boardId);
     const router = useRouter();
 
-    const [users, setUsers] = useState<ApprovalUser[]>([]);
-    const [boardTitle, setBoardTitle] = useState(`Board ${boardId}`);
-    const [loading, setLoading] = useState(true);
     const [processingUserName, setProcessingUserName] = useState<string | null>(null);
+    const [dismissedUserNames, setDismissedUserNames] = useState<string[]>([]);
 
     const theme = useTheme();
 
-    const loadRequestsAndBoardInfo = async () => {
-        if (!rawBoardId || isNaN(boardId)) {
+    const { data: boardInfo, loading: boardLoading } = useBoardDetails(boardId, isValidBoardId);
+    const { data: joinRequests, loading: requestsLoading, refresh: refreshJoinRequests, } = useBoardJoinRequests(boardId, isValidBoardId);
+
+    const boardTitle = boardInfo?.boardName ?? `Board ${boardId}`;
+    const users = (joinRequests ?? []).filter(
+        (user) => !dismissedUserNames.includes(user.userName)
+    );
+    const loading = boardLoading || requestsLoading;
+
+    useEffect(() => {
+        if (!isValidBoardId) {
             router.replace('../chat');
-            return;
         }
-
-        try {
-            setLoading(true);
-            const flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
-            const uniqueId = flexable_uniqueId || '';
-
-            const boardInfo = await APIHandler.getMessageBoardData(uniqueId, boardId);
-            setBoardTitle(boardInfo.boardName);
-            const requests = await APIHandler.getBoardJoinRequests(boardId, uniqueId);
-            setUsers(requests);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to load requests';
-            console.error('Load requests error:', err);
-            Alert.alert('Error', errorMessage);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadRequestsAndBoardInfo();
-    }, []);
-    
-    // Poll for new boards at a fixed interval
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            loadRequestsAndBoardInfo();
-        }, 5000);
-
-        return () => clearInterval(intervalId);
-    }, []);
+    }, [isValidBoardId, router]);
 
     const handleApproveUser = async (user: ApprovalUser) => {
-        if (!user.uniqueId) {
-            Alert.alert('Error', 'User information is incomplete');
-            return;
-        }
-
         try {
             setProcessingUserName(user.userName);
-            const memberUniqueId = await AsyncStorage.getItem('uniqueid');
-
-            if (!memberUniqueId) {
-                Alert.alert('Error', 'Current user is not registered');
-                return;
-            }
 
             await APIHandler.approveOfRequestedMembership(
                 boardId,
-                memberUniqueId,
                 user.userName
             );
 
-            // Remove the approved user from the list
-            setUsers(users.filter(u => u.userName !== user.userName));
+            setDismissedUserNames((current) => [...current, user.userName]);
+            await refreshJoinRequests();
 
             Alert.alert('Success', `${user.userName} has been approved to join the board`);
         } catch (err) {
@@ -103,8 +67,7 @@ export default function ApprovalRequestsScreen() {
     };
 
     const handleDenyUser = async (user: ApprovalUser) => {
-        // Remove the denied user from the list (no backend action needed for now)
-        setUsers(users.filter(u => u.userName !== user.userName));
+        setDismissedUserNames((current) => [...current, user.userName]);
         Alert.alert('Denied', `${user.userName}'s request has been denied`);
     };
 

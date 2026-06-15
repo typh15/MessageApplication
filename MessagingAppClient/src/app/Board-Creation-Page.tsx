@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, Switch, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import * as APIHandler from '@/ApiHandler';
-import { Button } from '@/components/ui/Button';
-import { LabeledTextBox } from '@/components/ui/LabeledTextBox';
+import { useSession } from '@/hooks/use-session';
+import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
+import { Button } from '@/components/ui/generic-button';
+import { LabeledTextBox } from '@/components/ui/labeled-text-box';
 
 export default function NewBoardScreen() {
   const [boardName, setBoardName] = useState('');
@@ -18,6 +18,7 @@ export default function NewBoardScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { session, loading: sessionLoading } = useSession();
 
   const safeAreaInsets = useSafeAreaInsets();
   const insets = {
@@ -27,10 +28,12 @@ export default function NewBoardScreen() {
   const theme = useTheme();
 
   const handleCreate = async () => {
-    var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
-    if (flexable_uniqueId == null){
-        flexable_uniqueId = "";
+    if (!session) {
+      Alert.alert('Session expired', 'Please log in again before creating a board.');
+      router.replace('../registration');
+      return;
     }
+
     if (!boardName.trim()) {
       Alert.alert('Validation', 'Please enter a board name');
       return;
@@ -43,7 +46,7 @@ export default function NewBoardScreen() {
 
     try {
       setLoading(true);
-      await APIHandler.createMessageBoard(flexable_uniqueId, boardName.trim(), visibleToPublic, passwordProtected, password ?? '');
+      await APIHandler.createMessageBoard(boardName.trim(), visibleToPublic, passwordProtected, password ?? '');
       // go back to boards and let it refresh
       router.replace('../boards');
     } catch (err) {
@@ -98,7 +101,7 @@ export default function NewBoardScreen() {
         <Button
             showText={true}
             buttonText="Create Board"
-            disabled={loading}
+            disabled={loading || sessionLoading || !session}
             onPress={handleCreate}
             style={styles.createButton}
             textStyle={styles.buttonText}

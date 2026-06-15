@@ -1,121 +1,111 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRef, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, TextInput, StyleSheet, Alert } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
-
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
+import { Button } from '@/components/ui/generic-button';
 import { MessageBox } from '@/components/ui/message-box';
-import { Button } from '@/components/ui/Button';
-import Message_Repo from '@/MessageRepository';
-import Message_Class from '@/components/Models/Message_Class';
-import * as APIHandler from '@/ApiHandler';
-import { FadeIn } from 'react-native-reanimated';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useBoardDetails } from '@/hooks/API/use-board-details';
+import { useBoardJoinRequests } from '@/hooks/API/use-board-join-requests';
+import { useMessages } from '@/hooks/API/use-messages';
 import { useTheme } from '@/hooks/use-theme';
+import { useSession } from '@/hooks/use-session';
 
-const update_interval = 0.5; // Update every ___ seconds
-
-
+const BOTTOM_THRESHOLD = 48;
 
 export default function ChatScreen() {
     const params = useLocalSearchParams();
     const rawBoardId = params.boardId as string | undefined;
     const boardId = rawBoardId ? parseInt(rawBoardId) : NaN;
+    const isValidBoardId = !!rawBoardId && Number.isFinite(boardId);
     const router = useRouter();
 
-    const messageRepoRef = useRef(new Message_Repo());
     const [text, setText] = useState('');
-    const [messageRepo, setMessageRepo] = useState<Message_Class[]>([]);
-    const [userName, setUserName] = useState('');
     const [loading, setLoading] = useState(false);
-    const [boardTitle, setBoardTitle] = useState(`Board ${boardId}`);
-    const [uniqueBoardId, setUniqueBoardId] = useState<string | null>(null);
+    const [showScrollToBottom, setShowScrollToBottom] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
+    const isNearBottomRef = useRef(true);
+    const didInitialScrollRef = useRef(false);
+    const previousLastMessageIdRef = useRef<string | null>(null);
 
     const theme = useTheme();
+    const { session } = useSession();
+    const {
+        data: messagesData,
+        refresh: refreshMessages,
+    } = useMessages(boardId, isValidBoardId);
+    const { data: boardInfo } = useBoardDetails(boardId, isValidBoardId);
+    const { data: joinRequests } = useBoardJoinRequests(boardId, isValidBoardId);
 
-    const loadUserName = async () => {
-        try {
-            const name = await AsyncStorage.getItem('username');
-            
-            if (name) {
-                setUserName(name);
-            }
-        } catch (err) {
-            console.error('Failed to load username:', err);
-        }
-    };
-    const loadBoardTitle = async () => {
-        try {
-            var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
-            if (flexable_uniqueId == null){
-                flexable_uniqueId = "";
-            }
-            const boardInfo = await APIHandler.getMessageBoardData(flexable_uniqueId, boardId);
-            setBoardTitle(boardInfo.boardName);
-            setUniqueBoardId(boardInfo.uniqueBoardId ?? null);
-        } catch (err) {
-            console.error('Failed to load board title:', err);
-        }
-    };
+    const messages = messagesData ?? [];
+    const boardTitle = boardInfo?.boardName ?? `Board ${boardId}`;
+    const uniqueBoardId = boardInfo?.uniqueBoardId ?? null;
+    const hasJoinRequests = (joinRequests ?? []).length > 0;
 
-    const loadMessages = async () => {
-        if (!rawBoardId || isNaN(boardId)) {
-            // invalid boardId — go back to boards
+    useEffect(() => {
+        if (!isValidBoardId) {
             router.replace('../boards');
+        }
+    }, [isValidBoardId, router]);
+
+    const scrollToBottom = (animated: boolean = true) => {
+        scrollViewRef.current?.scrollToEnd({ animated });
+        isNearBottomRef.current = true;
+        setShowScrollToBottom(false);
+    };
+
+    const handleMessageScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+        const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+        const isNearBottom = distanceFromBottom <= BOTTOM_THRESHOLD;
+
+        isNearBottomRef.current = isNearBottom;
+
+        if (isNearBottom) {
+            setShowScrollToBottom(false);
+        }
+    };
+
+    useEffect(() => {
+        const lastMessageId = messages.at(-1)?.id ?? null;
+
+        if (!lastMessageId || lastMessageId === previousLastMessageIdRef.current) {
             return;
         }
 
-        try {
-            var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
-            if (flexable_uniqueId == null){
-                flexable_uniqueId = "";
-            }
-            const msgs = await APIHandler.fetchMessages(boardId, flexable_uniqueId);
-            // reset repo and populate
-            messageRepoRef.current = new Message_Repo();
-            msgs.forEach(m => messageRepoRef.current.addMessage(m));
-            setMessageRepo(messageRepoRef.current.getMessages());
-        } catch (err) {
-            console.error('Failed to load messages for board', boardId, err);
+        previousLastMessageIdRef.current = lastMessageId;
+
+        if (!didInitialScrollRef.current) {
+            didInitialScrollRef.current = true;
+            requestAnimationFrame(() => scrollToBottom(false));
+            return;
         }
-    };
 
-    useEffect(() => {
-        loadUserName();
-        loadMessages();
-        loadBoardTitle();
-    }, []);
-
-    useEffect(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, [messageRepo]);
-
-    // Poll for new messages at a fixed interval
-    useEffect(() => {
-        if (!rawBoardId || isNaN(boardId)) return;
-
-        const intervalId = setInterval(() => {
-            loadMessages();
-        }, update_interval * 1000);
-
-        return () => clearInterval(intervalId);
-    }, [rawBoardId, boardId]);
-
+        if (isNearBottomRef.current) {
+            requestAnimationFrame(() => scrollToBottom(true));
+        } else {
+            setShowScrollToBottom(true);
+        }
+    }, [messages]);
 
     const handleSendMessage = async () => {
         if (!text.trim()) return;
 
+        if (!session) {
+            Alert.alert('Session expired', 'Please log in again before sending a message.');
+            router.replace('../registration');
+            return;
+        }
+
         try {
             setLoading(true);
-            const savedMessage = await APIHandler.sendMessage(text, userName || 'User', boardId);
-            messageRepoRef.current.addMessage(savedMessage);
-            setMessageRepo(messageRepoRef.current.getMessages());
+            await APIHandler.sendMessage(text, boardId);
             setText('');
+            await refreshMessages();
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
             Alert.alert('Error', errorMessage);
@@ -128,9 +118,9 @@ export default function ChatScreen() {
     const handleNewUserRequest = async () => {
         router.push({
             pathname: '../approval-requests',
-            params: { boardId: boardId.toString() }
+            params: { boardId: boardId.toString() },
         });
-    }
+    };
 
     const handleBackToBoards = () => {
         router.back();
@@ -140,7 +130,6 @@ export default function ChatScreen() {
         <ThemedView style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
                 <ThemedView style={styles.header}>
-                    
                     <Button
                         showText={true}
                         buttonText={'\u2190 Back'}
@@ -150,8 +139,8 @@ export default function ChatScreen() {
                         backgroundColor="transparent"
                         borderColor={theme.genericborder}
                         borderRadius={8}
-                
                     />
+
                     <ThemedView style={{ flex: 1, alignItems: 'center' }}>
                         <ThemedText type="title" style={styles.boardTitle}>{boardTitle}</ThemedText>
                         {uniqueBoardId ? (
@@ -160,43 +149,56 @@ export default function ChatScreen() {
                             </ThemedText>
                         ) : null}
                     </ThemedView>
-                    <Button
-                        showText={true}
-                        buttonText={'Join Requests'}
-                        onPress={handleNewUserRequest}
-                        style={styles.backButton}
-                        borderWidth={2}
-                        backgroundColor={theme.buttonBackground}
-                        borderColor={theme.genericborder}
-                        borderRadius={8}
-                
-                    />
+
+                    {hasJoinRequests ? (
+                        <Button
+                            showText={true}
+                            buttonText="Join Requests"
+                            onPress={handleNewUserRequest}
+                            style={styles.backButton}
+                            borderWidth={2}
+                            backgroundColor={theme.buttonBackground}
+                            borderColor={theme.genericborder}
+                            borderRadius={8}
+                        />
+                    ) : null}
                 </ThemedView>
 
                 <ScrollView
                     ref={scrollViewRef}
                     style={styles.messageScroll}
                     contentContainerStyle={styles.messageList}
-                    onContentSizeChange={() => {
-                        scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }}
+                    onScroll={handleMessageScroll}
+                    scrollEventThrottle={80}
                 >
-                    {messageRepo.length === 0 ? (
+                    {messages.length === 0 ? (
                         <ThemedView style={styles.emptyContainer}>
                             <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
                         </ThemedView>
                     ) : (
-                        messageRepo.map((message, index) => (
+                        messages.map((message) => (
                             <MessageBox
-                                key={index}
+                                key={message.id}
                                 sender={message.fromusername}
                                 message={message.content}
                                 timestamp={message.timestamp}
-                                isSentByCurrentUser={message.fromusername === userName}
+                                isSentByCurrentUser={message.fromusername === session?.userName}
                             />
                         ))
                     )}
                 </ScrollView>
+
+                {showScrollToBottom ? (
+                    <Button
+                        showText={true}
+                        buttonText="New messages"
+                        onPress={() => scrollToBottom(true)}
+                        style={styles.scrollToBottomButton}
+                        backgroundColor={theme.buttonBackground}
+                        borderRadius={999}
+                        textStyle={styles.scrollToBottomButtonText}
+                    />
+                ) : null}
 
                 <ThemedView style={styles.composer}>
                     <TextInput
@@ -214,14 +216,13 @@ export default function ChatScreen() {
                         showImage={true}
                         imageSource={require("../../assets/images/SendButton.png")}
                         onPress={handleSendMessage}
-                        disabled={loading || text.trim().length === 0}
-                        width = {48}
-                        height = {48}
-                        borderRadius = {8}
-                        imageWidth = {24}
-                        imageHeight = {24}
+                        disabled={loading || !session || !isValidBoardId || text.trim().length === 0}
+                        width={48}
+                        height={48}
+                        borderRadius={8}
+                        imageWidth={24}
+                        imageHeight={24}
                     />
-                           
                 </ThemedView>
             </SafeAreaView>
         </ThemedView>
@@ -272,7 +273,7 @@ const styles = StyleSheet.create({
 
     messageList: {
         paddingTop: Spacing.four,
-        paddingBottom: Spacing.two,
+        paddingBottom: Spacing.four,
         gap: Spacing.two,
     },
 
@@ -296,6 +297,25 @@ const styles = StyleSheet.create({
         paddingBottom: Spacing.one,
     },
 
+    scrollToBottomButton: {
+        position: 'absolute',
+        right: Spacing.four,
+        bottom: 74,
+        paddingHorizontal: Spacing.three,
+        paddingVertical: Spacing.two,
+        shadowColor: '#000000',
+        shadowOpacity: 0.24,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 4,
+    },
+
+    scrollToBottomButtonText: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+
     container: {
         flex: 1,
         backgroundColor: "#000000",
@@ -312,21 +332,5 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.two,
         borderRadius: 24,
         textAlignVertical: "center",
-    },
-
-    sendButton: {
-        backgroundColor: '#007AFF',
-        paddingHorizontal: Spacing.four,
-        paddingVertical: Spacing.two,
-        borderRadius: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: 48,
-        minWidth: 60,
-    },
-
-    sendButtonText: {
-        color: '#ffffff',
-        fontWeight: '600',
     },
 });

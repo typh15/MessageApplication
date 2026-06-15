@@ -1,9 +1,9 @@
 
 import { useEffect} from 'react';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import * as APIHandler from '@/ApiHandler';
+import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
+import { clearSession } from '@/hooks/use-session';
 
 export default function HomeScreen() {
     const router = useRouter();
@@ -12,13 +12,11 @@ export default function HomeScreen() {
         {
         async function loadInitialRoute() 
             {
-                const uniqueId = await AsyncStorage.getItem('uniqueid');
-
-                if (uniqueId && await APIHandler.validateActiveUser(uniqueId)) {
-                    router.replace('/boards');
+                if (await APIHandler.validateCurrentSession()) {
+                    router.replace('/Homescreen-Board-Select-Page');
                 } else {
-                    await AsyncStorage.removeItem('uniqueid');
-                    router.replace('/registration');
+                    await clearSession();
+                    router.replace('/Login-Registration-Page');
                 }
             }
 

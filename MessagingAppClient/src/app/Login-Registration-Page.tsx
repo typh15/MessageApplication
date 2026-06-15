@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
+import { Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import * as APIHandler from '@/ApiHandler';
+import { clearSession, getSession } from '@/hooks/use-session';
+import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 
-import { Button } from '@/components/ui/Button';
-import { LabeledTextBox } from '@/components/ui/LabeledTextBox';
+import { Button } from '@/components/ui/generic-button';
+import { LabeledTextBox } from '@/components/ui/labeled-text-box';
 
 export default function RegistrationScreen() {
     const [username, setUsername] = useState('');
@@ -95,8 +96,6 @@ export default function RegistrationScreen() {
             const response = await APIHandler.createActiveUser(username);
             console.log('User registered:', response);
             
-            // Store username and IP address locally
-            await AsyncStorage.setItem('username', username);
             await AsyncStorage.setItem('serverUrl', serverUrl);
             
             // Navigate to the boards selection screen
@@ -114,7 +113,7 @@ export default function RegistrationScreen() {
 
     const handleClearUniqueId = async () => {
         try {
-            await AsyncStorage.removeItem('uniqueid');
+            await clearSession();
             setUsername('');
             setError('');
             console.log('UniqueId cleared');
@@ -128,8 +127,8 @@ export default function RegistrationScreen() {
         try {
             setLoading(true);
             setError('');
-            const uniqueId = await AsyncStorage.getItem('uniqueid');
-            if (!uniqueId) {
+            const session = await getSession();
+            if (!session) {
                 setError('No saved ID found. Please register first.');
                 return;
             }

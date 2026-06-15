@@ -1,47 +1,33 @@
-import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, ActivityIndicator, TextInput, Alert } from 'react-native';
+import { useState } from 'react';
+import { Platform, ScrollView, StyleSheet, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useBoards } from '@/hooks/API/use-boards';
 import { useTheme } from '@/hooks/use-theme';
-import * as APIHandler from '@/ApiHandler';
+import type { MessageBoard } from '@/APIHandlers/ApiHandlerHub';
+import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 
-import { Button } from '@/components/ui/Button';
-
-
-export interface MessageBoard {
-    boardId: number;
-    boardName: string;
-    visibleToPublic: boolean;
-    passwordProtected: boolean;
-}
+import { Button } from '@/components/ui/generic-button';
 
 export default function BoardSelectionScreen() {
-    const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
-    const [joining, setJoining] = useState(false);
-    const [boards, setBoards] = useState<MessageBoard[]>([]);
-    const [searchBoardId, setSearchBoardId] = useState('');
-    const [requestingJoin, setRequestingJoin] = useState(false);
+  const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
+  const [joining, setJoining] = useState(false);
+  const [searchBoardId, setSearchBoardId] = useState('');
+  const [requestingJoin, setRequestingJoin] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const router = useRouter();
 
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-
-    const [error, setError] = useState('');
-    const router = useRouter();
-    
-    // Poll for new boards at a fixed interval
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            loadBoards(false);
-        }, 5000);
-
-        return () => clearInterval(intervalId);
-    }, []);
-
+  const {
+    data: boardsData,
+    error: boardsError,
+    refresh: refreshBoards,
+  } = useBoards();
+  const boards = boardsData ?? [];
+  const errorMessage = actionError || boardsError?.message || '';
 
   const safeAreaInsets = useSafeAreaInsets();
   const insets = {
@@ -63,10 +49,6 @@ export default function BoardSelectionScreen() {
     },
   });
 
-  useEffect(() => {
-    loadBoards(true);
-  }, []);
-
   const handleRequestBoardByUniqueId = async () => {
     if (!searchBoardId.trim()) {
       Alert.alert('Enter board ID', 'Please enter the unique board ID to request access.');
@@ -75,17 +57,14 @@ export default function BoardSelectionScreen() {
 
     try {
       setRequestingJoin(true);
-      const userName = await AsyncStorage.getItem('username');
-      if (!userName) {
-        throw new Error('Username not found. Please register first.');
-      }
-
-      await APIHandler.requestBoardMembership(searchBoardId.trim(), userName);
+      setActionError('');
+      await APIHandler.requestBoardMembership(searchBoardId.trim());
       Alert.alert('Request sent', 'Your request to join the board has been submitted.');
       setSearchBoardId('');
+      await refreshBoards();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to request board access';
-      setError(errorMessage);
+      setActionError(errorMessage);
       console.error('Request board join error:', err);
       Alert.alert('Error', errorMessage);
     } finally {
@@ -93,84 +72,56 @@ export default function BoardSelectionScreen() {
     }
   };
 
-  const loadBoards = async (showFullScreenLoading: boolean = false) => {
-  try {
-    if (showFullScreenLoading) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-
-    setError('');
-    var flexable_uniqueId = await AsyncStorage.getItem('uniqueid');
-    if (flexable_uniqueId == null){
-        flexable_uniqueId = "";
-    }
-    const boardsData = await APIHandler.getMessageBoards(flexable_uniqueId);
-    setBoards(boardsData);
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Failed to load boards';
-    setError(errorMessage);
-    console.error('Load boards error:', err);
-  } finally {
-    if (showFullScreenLoading) {
-      setLoading(false);
-    } else {
-      setRefreshing(false);
-    }
-  }
-};
-
   const handleJoinBoard = async (boardId: number) => {
     try {
       setJoining(true);
       setSelectedBoardId(boardId);
+      setActionError('');
       await APIHandler.joinMessageBoard(boardId);
       console.log('Joined board:', boardId);
-      
-      // Navigate to the chat screen with the selected board
+
       router.push({
         pathname: '../chat',
-        params: { boardId: boardId.toString() }
+        params: { boardId: boardId.toString() },
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to join board';
-      setError(errorMessage);
+      setActionError(errorMessage);
       console.error('Join board error:', err);
     } finally {
       setJoining(false);
       setSelectedBoardId(null);
     }
   };
-const renderBoardCard = (board: MessageBoard) => (
-  <ThemedView style={[styles.boardCard, { borderColor: theme.text + '90' }]}>
-    <ThemedView style={styles.boardInfo}>
-      <ThemedText type="subtitle" style={styles.boardName}>
-        {board.boardName}
-      </ThemedText>
 
-      <ThemedView style={styles.boardMeta}>
-        {board.visibleToPublic && (
-          <ThemedText style={styles.badgeText}>Public</ThemedText>
-        )}
+  const renderBoardCard = (board: MessageBoard) => (
+    <ThemedView style={[styles.boardCard, { borderColor: theme.text + '90' }]}>
+      <ThemedView style={styles.boardInfo}>
+        <ThemedText type="subtitle" style={styles.boardName}>
+          {board.boardName}
+        </ThemedText>
 
-        {board.passwordProtected && (
-          <ThemedText style={styles.badgeText}>Protected</ThemedText>
-        )}
+        <ThemedView style={styles.boardMeta}>
+          {board.visibleToPublic && (
+            <ThemedText style={styles.badgeText}>Public</ThemedText>
+          )}
+
+          {board.passwordProtected && (
+            <ThemedText style={styles.badgeText}>Protected</ThemedText>
+          )}
+        </ThemedView>
       </ThemedView>
-    </ThemedView>
 
-    <Button
+      <Button
         showText={true}
         buttonText="Join"
         onPress={() => handleJoinBoard(board.boardId)}
         disabled={joining && selectedBoardId === board.boardId}
         style={styles.joinButton}
         textStyle={styles.joinButtonText}
-    />
-
-  </ThemedView>
-);
+      />
+    </ThemedView>
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -181,15 +132,14 @@ const renderBoardCard = (board: MessageBoard) => (
         <ThemedView style={styles.headerContainer}>
           <ThemedView style={styles.headerTop}>
             <ThemedText type="title">Message Boards</ThemedText>
-                
-            <Button
-                showText={true}
-                buttonText="New Board"
-                onPress={() => router.push('/new-board')}
-                style={styles.newBoardButton}
-                textStyle={styles.newBoardButtonText}
-            />
 
+            <Button
+              showText={true}
+              buttonText="New Board"
+              onPress={() => router.push('/Board-Creation-Page')}
+              style={styles.newBoardButton}
+              textStyle={styles.newBoardButtonText}
+            />
           </ThemedView>
 
           <ThemedText type="subtitle" style={styles.subtitle}>
@@ -220,17 +170,17 @@ const renderBoardCard = (board: MessageBoard) => (
           </ThemedView>
         </ThemedView>
 
-        {error ? (
+        {errorMessage ? (
           <ThemedView style={[styles.errorContainer, { borderColor: '#ff4444' }]}>
-            <ThemedText style={{ color: '#ff4444' }}>{error}</ThemedText>
-            
-                <Button
-                    showText={true}
-                    buttonText="New Board"
-                    onPress={() => router.push('/new-board')}
-                    style={styles.retryButton}
-                    textStyle={styles.buttonText}
-                />
+            <ThemedText style={{ color: '#ff4444' }}>{errorMessage}</ThemedText>
+
+            <Button
+              showText={true}
+              buttonText="New Board"
+              onPress={() => router.push('/Board-Creation-Page')}
+              style={styles.retryButton}
+              textStyle={styles.buttonText}
+            />
           </ThemedView>
         ) : null}
 
@@ -239,13 +189,13 @@ const renderBoardCard = (board: MessageBoard) => (
             <ThemedText style={styles.emptyText}>No boards available</ThemedText>
           </ThemedView>
         ) : (
-            <ThemedView style={styles.boardsList}>
-                {boards.map((board) => (
-                    <ThemedView key={board.boardId} style={styles.boardCardWrapper}>
-                        {renderBoardCard(board)}
-                    </ThemedView>
-                ))}
-            </ThemedView>
+          <ThemedView style={styles.boardsList}>
+            {boards.map((board) => (
+              <ThemedView key={board.boardId} style={styles.boardCardWrapper}>
+                {renderBoardCard(board)}
+              </ThemedView>
+            ))}
+          </ThemedView>
         )}
       </ScrollView>
     </ThemedView>
@@ -265,8 +215,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.two,
     gap: Spacing.three,
-
-
   },
   newBoardButton: {
     backgroundColor: '#007AFF',
@@ -297,7 +245,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
     borderColor: '#feffff',
-
   },
   boardInfo: {
     flex: 1,

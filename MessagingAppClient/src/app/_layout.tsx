@@ -12,6 +12,8 @@ export default function RootLayout() {
                 <Stack.Screen name="Login-Registration-Page" />
                 <Stack.Screen name="Homescreen-Board-Select-Page" />
                 <Stack.Screen name="Chat-Page" />
+                <Stack.Screen name="Board-Creation-Page" />
+                <Stack.Screen name="Board-Join-Requests-Page" />
             </Stack>
         </ThemeProvider>
     );

@@ -1,50 +1,65 @@
 # Messaging App
 
-A full-stack message board application with an ASP.NET Core API and an Expo/React Native client. Users register a username, create or join message boards, send messages, request access to private boards, and approve pending join requests.
+A full-stack message board application with an ASP.NET Core API and an Expo/React Native client. Users can register a session, create and join boards, request access to private boards, approve pending requests, and exchange messages through a polling-based chat UI.
 
-The project is currently development-focused. All API data is stored in memory, so users, boards, requests, invites, and messages are reset whenever the API process restarts.
+This project is still development-focused. Most application state is stored in singleton, in-memory repositories, so users, accounts, boards, memberships, requests, invites, and messages reset when the API restarts. Uploaded images are written under `MessagingApp.Api/App_Data/images`, but that folder is cleared when the API starts.
 
 ## Project Structure
 
 ```text
 MessagingApp/
-|-- MessagingApp.Api/          ASP.NET Core backend
-|   |-- Controllers/           HTTP endpoints
-|   |-- Models/                Active users, message boards, chat messages
-|   |-- Repositories/          In-memory data stores
-|   |-- Requests/              API request DTOs
-|   |-- Responses/             API response DTOs
-|   |-- Services/              Chat and board business logic
-|   `-- Program.cs             App startup, DI, CORS, controllers
+|-- MessagingApp.Api/                       ASP.NET Core backend
+|   |-- Controllers/                        Registration, users, boards, membership, messages
+|   |-- Models/                             Active users, boards, messages, message types
+|   |-- Repositories/                       In-memory repositories
+|   |-- Requests/                           API request DTOs
+|   |-- Responses/                          API response DTOs
+|   |-- Services/                           Chat and board business logic
+|   |-- Tools/
+|   |   |-- AccountPlugin/                  User account/profile endpoints and storage
+|   |   `-- ImagePlugin/                    Image upload, metadata, and file serving
+|   `-- Program.cs                          Dependency injection, CORS, controllers
 |
-|-- MessagingAppClient/        Expo / React Native frontend
-|   |-- src/app/               Expo Router screens
-|   |-- src/components/        Shared UI and message components
-|   |-- src/constants/         Theme constants
-|   |-- src/hooks/             Theme and color-scheme hooks
-|   |-- src/ApiHandler.tsx     Client API calls and server URL
-|   `-- assets/                Images and Expo assets
+|-- MessagingAppClient/                     Expo / React Native frontend
+|   |-- src/app/                            Expo Router screens
+|   |-- src/APIHandlers/                    API client functions grouped by domain
+|   |-- src/hooks/API/                      Polling hooks for boards, messages, requests
+|   |-- src/session/                        AsyncStorage-backed session helpers
+|   |-- src/components/                     Shared UI and message components
+|   |-- src/constants/                      Theme constants
+|   `-- assets/                             Images and Expo assets
 |
-|-- Build_Client.bat           Runs an EAS Android preview build
-|-- Build_Run_Api.bat          Builds and starts the API
-`-- Run_Client_Test.bat        Starts Expo with the configured host name
+|-- Build_Client.bat                        Runs an EAS Android preview build
+|-- Build_Run_Api.bat                       Builds and starts the API
+`-- Run_Client_Test.bat                     Starts Expo with the configured host name
 ```
 
 ## Current Features
 
-- Username registration with duplicate-name checks.
-- Saved user sessions through `AsyncStorage`.
-- Startup validation of saved user IDs before entering the app.
+- User registration through `/registration`, which creates both an active user and account record.
+- Optional anonymous active-user creation through `/anonymous-users`.
+- Saved client sessions using `AsyncStorage` keys for `uniqueid` and `username`.
+- Startup session validation before entering the board list.
 - Public and private message board creation.
 - Optional board password protection.
-- Unique board IDs for private-board access requests.
-- Board list refresh every 5 seconds.
-- Chat messages with server timestamps and generated message IDs.
-- Chat refresh every 0.5 seconds through polling.
-- Join-request workflow for private boards.
-- Approval screen for existing board members to approve pending requests.
-- Backend support for board invitations and invite accept/reject flows.
+- Unique board IDs for requesting access to private boards.
+- Board list polling every 5 seconds.
+- Board detail and join-request polling every 5 seconds.
+- Message polling every 500 ms.
+- Text message sending with server timestamps and board-local/global message IDs.
+- Message deletion endpoint that only allows the original sender to delete their message.
+- Join-request approval workflow for current board members.
+- Backend endpoints for board invites and invite accept/reject flows.
+- Backend and client handler support for image upload and image message metadata.
+- Backend and client handler support for basic account profile data.
 - Android, iOS, and web support through Expo.
+
+## What Is Not Fully Wired Yet
+
+- Board invitation endpoints exist in the API, but the current screens do not expose invite creation, invite lists, accept, or reject actions.
+- Image upload and image-message handlers exist, but the current chat screen only exposes text message composition.
+- Account profile endpoints and client handlers exist, but the current screen flow does not expose profile editing.
+- The Server URL field on the registration screen saves a value, but active API calls use the hardcoded client config value.
 
 ## Tech Stack
 
@@ -52,10 +67,12 @@ MessagingApp/
 
 - ASP.NET Core targeting `.NET 9`
 - C#
-- Controller-based API
-- Singleton services and repositories
-- In-memory data storage
-- CORS configured to allow any origin, method, and header during development
+- Controller-based REST API
+- Dependency injection with singleton services and repositories
+- DTOs for requests and responses
+- In-memory repositories for development storage
+- File-backed image payload storage that is cleared at API startup
+- CORS configured to allow any origin, method, and header
 
 ### Frontend
 
@@ -66,6 +83,8 @@ MessagingApp/
 - Expo Router
 - React Native StyleSheet styling
 - `@react-native-async-storage/async-storage`
+- Domain-specific API handler modules
+- Reusable polling hook for refresh-based data loading
 - EAS build configuration for Android/internal builds
 
 ## Prerequisites
@@ -101,13 +120,6 @@ cd MessagingApp.Api
 dotnet run
 ```
 
-The current launch settings bind the API to:
-
-- `http://100.90.53.59:5121`
-- `https://100.90.53.59:7060`
-
-The Expo client currently sends requests to `http://100.90.53.59:5121`, defined in `MessagingAppClient/src/ApiHandler.tsx`.
-
 Start the client:
 
 ```bash
@@ -122,51 +134,59 @@ Then choose a target from Expo:
 - Press `w` for web.
 - Scan the QR code with Expo Go for a physical device.
 
-For the existing Windows helper scripts:
+The existing helper scripts are:
 
 ```bash
 Build_Run_Api.bat
 Run_Client_Test.bat
+Build_Client.bat
 ```
 
-`Run_Client_Test.bat` sets `REACT_NATIVE_PACKAGER_HOSTNAME=100.90.53.59` and starts Expo with a cleared cache.
+- `Build_Run_Api.bat` builds and runs the API.
+- `Run_Client_Test.bat` sets `REACT_NATIVE_PACKAGER_HOSTNAME=100.90.53.59` and starts Expo with a cleared cache.
+- `Build_Client.bat` runs an EAS Android preview build.
 
 ## Network Configuration
 
-The API host is currently hardcoded in two places:
+The API and client both use hardcoded development host values right now.
+
+API launch settings:
 
 - `MessagingApp.Api/Properties/launchSettings.json`
-- `MessagingAppClient/src/ApiHandler.tsx`
+- Current HTTP URL: `http://100.90.53.59:5121`
+- Current HTTPS URL: `https://100.90.53.59:7060`
 
-If your machine is not reachable at `100.90.53.59`, update both files to use your current local or LAN address. For mobile testing, the device running Expo Go must be able to reach the API host.
+Client API config:
 
-The registration screen has a Server URL field, but the active API calls still use the `serverUrl` constant in `ApiHandler.tsx`.
+- `MessagingAppClient/src/APIHandlers/Helpers/config.ts`
+- Current client URL: `http://100.93.130.74:5121`
+
+Before running the full app, make sure the client URL points to the same reachable host and port as the API. For physical-device testing, the phone running Expo Go must be able to reach that API address over the local network.
 
 ## Client Flow
 
-1. `src/app/index.tsx` checks for a saved `uniqueid`.
-2. If the API validates that ID, the app opens the boards screen.
-3. If validation fails, the saved ID is cleared and the app opens registration.
-4. Registration creates an active user and stores `username` and `uniqueid`.
-5. The boards screen lists public boards and boards the user already belongs to.
-6. Users can create boards, join accessible boards, or request access by unique board ID.
-7. Chat loads board details, shows the unique board ID, polls for messages, and sends new messages.
-8. Board members can open the join-request screen and approve pending users.
-
-Because the backend is in memory, a client may keep a saved ID after the API restarts. On the next app startup, validation should remove the stale ID and send the user back to registration.
+1. `src/app/index.tsx` calls `validateCurrentSession()`.
+2. If the saved session is valid, the app opens `Homescreen-Board-Select-Page`.
+3. If validation fails, the saved session is cleared and the app opens `Login-Registration-Page`.
+4. Registration calls `/registration` and stores the returned `uniqueId` and username.
+5. The board screen uses `useBoards()` to poll available public boards and boards the user belongs to.
+6. Users can create boards, join visible boards, or request private-board access by unique board ID.
+7. `Chat-Page` uses polling hooks for messages, board details, and join requests.
+8. Chat shows a join-request button only when pending requests exist.
+9. `Board-Join-Requests-Page` lets board members approve pending requests.
 
 ## API Reference
 
-### Active Users
+### Registration and Active Users
 
 | Method | Route | Description |
 | --- | --- | --- |
-| `POST` | `/active-users` | Create an active user. |
+| `POST` | `/registration` | Create a user account and active user together. |
+| `POST` | `/anonymous-users` | Create an active user without account data. |
 | `GET` | `/active-usernames` | Return all active usernames. |
 | `GET` | `/active-users/validate?uniqueId={uniqueId}` | Return whether a user ID exists in the current API process. |
-| `GET` | `/active-users/{uniqueId}/invites` | Return board invites for a user. |
 
-Create user body:
+Registration body:
 
 ```json
 {
@@ -174,25 +194,38 @@ Create user body:
 }
 ```
 
-Create user response:
+Registration response:
 
 ```json
 {
   "userName": "alex",
-  "uniqueId": "generated-guid"
+  "uniqueId": "generated-guid",
+  "account": {
+    "uniqueId": "generated-guid",
+    "displayName": "alex",
+    "avatarImageId": null,
+    "publicBlurb": null
+  }
 }
 ```
+
+### User Accounts
+
+| Method | Route | Description |
+| --- | --- | --- |
+| `POST` | `/user-accounts` | Create account/profile data directly. |
+| `GET` | `/user-accounts/{uniqueId}` | Return public account data. |
+| `PUT` | `/user-accounts/{uniqueId}/display-name` | Update display name. |
+| `PUT` | `/user-accounts/{uniqueId}/public-blurb` | Update public profile text. |
+| `PUT` | `/user-accounts/{uniqueId}/avatar` | Update avatar image ID. |
 
 ### Message Boards
 
 | Method | Route | Description |
 | --- | --- | --- |
-| `GET` | `/message-boards?uniqueId={uniqueId}` | Return public boards plus private boards the user belongs to. |
-| `GET` | `/message-boards/{boardId}?uniqueId={uniqueId}` | Return board details if the user is active and belongs to the board. |
+| `GET` | `/message-boards?uniqueId={uniqueId}` | Return public boards plus boards the user belongs to. |
+| `GET` | `/message-boards/{boardId}?uniqueId={uniqueId}` | Return board details if the user belongs to the board. |
 | `POST` | `/message-boards` | Create a board and add the creator as a member. |
-| `POST` | `/message-boards/{boardId}/join` | Join a board by numeric board ID. |
-| `POST` | `/message-boards/search` | Request access to a board by unique board ID. |
-| `POST` | `/message-boards/join-by-code` | Join a password-protected board by unique board ID and password. |
 | `GET` | `/public-boardnames` | Return names of public boards. |
 
 Create board body:
@@ -207,7 +240,33 @@ Create board body:
 }
 ```
 
-Join board body:
+Board responses include:
+
+```json
+{
+  "boardId": 1,
+  "boardName": "General",
+  "visibleToPublic": true,
+  "passwordProtected": false,
+  "uniqueBoardId": "ABC12345"
+}
+```
+
+### Board Membership
+
+| Method | Route | Description |
+| --- | --- | --- |
+| `POST` | `/message-boards/{boardId}/join` | Join a board by numeric board ID. |
+| `POST` | `/message-boards/search` | Request access by unique board ID. |
+| `GET` | `/message-boards/{boardId}/requests?memberUniqueId={uniqueId}` | Return pending requests for a board member. |
+| `POST` | `/message-boards/{boardId}/approvals?memberUniqueId={uniqueId}&userName={userName}` | Approve a pending request. |
+| `POST` | `/message-boards/{boardId}/invites?memberUniqueId={uniqueId}&inviteUserName={userName}` | Invite an active user to a board. |
+| `GET` | `/active-users/{uniqueId}/invites` | Return board invites for a user. |
+| `POST` | `/message-boards/{boardId}/invites/accept?uniqueId={uniqueId}` | Accept an invite and join the board. |
+| `POST` | `/message-boards/{boardId}/invites/reject?uniqueId={uniqueId}` | Reject an invite. |
+| `POST` | `/message-boards/join-by-code` | Join a password-protected board by unique board ID and password. |
+
+Join body:
 
 ```json
 {
@@ -226,108 +285,69 @@ Request access body:
 }
 ```
 
-Join by code body:
-
-```json
-{
-  "UniqueBoardId": "ABC12345",
-  "UniqueId": "user-guid",
-  "Password": "board-password"
-}
-```
-
-Board responses include:
-
-```json
-{
-  "boardId": 1,
-  "boardName": "General",
-  "visibleToPublic": true,
-  "passwordProtected": false,
-  "uniqueBoardId": "ABC12345"
-}
-```
-
 ### Messages
 
 | Method | Route | Description |
 | --- | --- | --- |
 | `GET` | `/message-boards/{boardId}/messages?uniqueId={uniqueId}` | Return messages for a board the user belongs to. |
-| `POST` | `/message-boards/{boardId}/messages` | Send a message to a board the user belongs to. |
-| `DELETE` | `/message-boards/{boardId}/messages/{messageId}` | Delete a message by board-local message ID. |
+| `POST` | `/message-boards/{boardId}/messages` | Send a text or image message to a board. |
+| `DELETE` | `/message-boards/{boardId}/messages/{messageId}?uniqueId={uniqueId}` | Delete a message if it was sent by the current user. |
 
-Send message body:
+Send text message body:
 
 ```json
 {
   "FromUserName": "alex",
   "ToUserName": "",
-  "LocalTimestamp": "2026-06-10T12:00:00.000Z",
+  "LocalTimestamp": "2026-06-16T12:00:00.000Z",
   "Content": "Hello!",
-  "UniqueId": "user-guid"
+  "UniqueId": "user-guid",
+  "MessageType": 0,
+  "ImageId": null
 }
 ```
 
-Send message response:
+Send image message body:
 
 ```json
 {
-  "uniqueId": "user-guid",
-  "message": {
-    "id": 1,
-    "fromUserName": "alex",
-    "boardId": 1,
-    "clientTimestamp": "2026-06-10T12:00:00Z",
-    "serverTimestamp": "2026-06-10T12:00:01Z",
-    "content": "Hello!",
-    "globalId": "1-1",
-    "hash": 123456789
-  }
+  "FromUserName": "alex",
+  "ToUserName": "",
+  "LocalTimestamp": "2026-06-16T12:00:00.000Z",
+  "Content": "Optional caption",
+  "UniqueId": "user-guid",
+  "MessageType": 1,
+  "ImageId": "uploaded-image-id"
 }
 ```
 
-### Join Requests and Invites
+### Images
 
 | Method | Route | Description |
 | --- | --- | --- |
-| `GET` | `/message-boards/{boardId}/requests?memberUniqueId={uniqueId}` | Return pending join requests for a board member. |
-| `POST` | `/message-boards/{boardId}/approvals?memberUniqueId={uniqueId}&userName={userName}` | Approve a pending join request. |
-| `POST` | `/message-boards/{boardId}/invites?memberUniqueId={uniqueId}&inviteUserName={userName}` | Invite an active user to a board. |
-| `POST` | `/message-boards/{boardId}/invites/accept?uniqueId={uniqueId}` | Accept an invite and join the board. |
-| `POST` | `/message-boards/{boardId}/invites/reject?uniqueId={uniqueId}` | Reject an invite. |
+| `POST` | `/images` | Upload a JPEG, PNG, or WebP image as multipart form data. |
+| `GET` | `/images/{imageId}` | Download the image file. |
+| `GET` | `/images/{imageId}/metadata` | Return image metadata. |
+| `GET` | `/images/owners/{ownerUniqueId}` | Return all image metadata for an owner. |
+| `DELETE` | `/images/{imageId}?ownerUniqueId={ownerUniqueId}` | Delete an image owned by the given user. |
 
-Join-request responses include:
+Image uploads require form fields:
 
-```json
-[
-  {
-    "userName": "alex",
-    "uniqueId": "user-guid"
-  }
-]
-```
+- `ownerUniqueId`
+- `image`
 
-Invite responses include:
-
-```json
-[
-  {
-    "boardId": 1,
-    "boardName": "General",
-    "uniqueBoardId": "ABC12345"
-  }
-]
-```
+Images are limited to 5 MB and supported content types are JPEG, PNG, and WebP.
 
 ## Development Notes
 
-- The API registers repositories as singletons, so state is shared for the lifetime of the API process only.
-- There is no database, authentication provider, password hashing, authorization policy, or production identity system yet.
+- The API uses singleton repositories, so most state lives only for the current process.
+- Uploaded image files are deleted on API startup by `ClearStoredImagesAsync()`.
+- There is no persistent database, authentication provider, password hashing, authorization policy, or production identity system yet.
 - Board passwords are stored as plain text in memory.
 - Public board names must be unique, case-insensitively. Private board names are not checked by the same rule.
+- Private boards that are not password-protected cannot be joined directly by board ID; users must request access.
+- Image messages require the referenced image to belong to the sender.
 - The client polls instead of using WebSockets or SignalR.
-- The client API layer is centralized in `MessagingAppClient/src/ApiHandler.tsx`.
-- The backend has invite endpoints that are not yet wired into the current client UI.
 - The root project does not currently include a project-wide license file. `MessagingAppClient/LICENSE` is the Expo template license.
 
 ## Useful Commands
@@ -371,9 +391,9 @@ eas build --platform android --profile preview
 
 - Replace in-memory repositories with persistent storage.
 - Move API host configuration out of hardcoded constants.
-- Add proper authentication and authorization.
+- Add real authentication and authorization.
 - Hash board passwords before storing or comparing them.
 - Add real-time delivery with SignalR or another push mechanism.
-- Finish client UI for board invitations.
+- Wire invitation, image-message, and account-profile features into the visible client UI.
 - Improve board moderation and message deletion behavior.
 - Add automated tests for service rules and client API flows.

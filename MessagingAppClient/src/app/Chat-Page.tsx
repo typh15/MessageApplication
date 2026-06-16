@@ -48,7 +48,7 @@ export default function ChatScreen() {
 
     useEffect(() => {
         if (!isValidBoardId) {
-            router.replace('../boards');
+            router.replace('../Homescreen-Board-Select-Page');
         }
     }, [isValidBoardId, router]);
 
@@ -97,7 +97,7 @@ export default function ChatScreen() {
 
         if (!session) {
             Alert.alert('Session expired', 'Please log in again before sending a message.');
-            router.replace('../registration');
+            router.replace('../Login-Registration-Page');
             return;
         }
 
@@ -117,7 +117,7 @@ export default function ChatScreen() {
 
     const handleNewUserRequest = async () => {
         router.push({
-            pathname: '../approval-requests',
+            pathname: '../Board-Join-Requests-Page',
             params: { boardId: boardId.toString() },
         });
     };

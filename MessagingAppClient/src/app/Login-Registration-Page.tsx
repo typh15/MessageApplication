@@ -99,7 +99,7 @@ export default function RegistrationScreen() {
             await AsyncStorage.setItem('serverUrl', serverUrl);
             
             // Navigate to the boards selection screen
-            router.push('../boards');
+            router.push('../Homescreen-Board-Select-Page');
         } 
         catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to register';
@@ -134,7 +134,7 @@ export default function RegistrationScreen() {
             }
 
             // Proceed to boards — the app will use the saved uniqueId
-            router.push('../boards');
+            router.push('../Homescreen-Board-Select-Page');
         } 
         catch (err) {
             console.error('Login error:', err);

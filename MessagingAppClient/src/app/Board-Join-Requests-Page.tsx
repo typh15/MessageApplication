@@ -40,7 +40,7 @@ export default function ApprovalRequestsScreen() {
 
     useEffect(() => {
         if (!isValidBoardId) {
-            router.replace('../chat');
+            router.replace('../Chat-Page');
         }
     }, [isValidBoardId, router]);
 

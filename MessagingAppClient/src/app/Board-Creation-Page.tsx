@@ -30,7 +30,7 @@ export default function NewBoardScreen() {
   const handleCreate = async () => {
     if (!session) {
       Alert.alert('Session expired', 'Please log in again before creating a board.');
-      router.replace('../registration');
+      router.replace('../Login-Registration-Page');
       return;
     }
 
@@ -48,7 +48,7 @@ export default function NewBoardScreen() {
       setLoading(true);
       await APIHandler.createMessageBoard(boardName.trim(), visibleToPublic, passwordProtected, password ?? '');
       // go back to boards and let it refresh
-      router.replace('../boards');
+      router.replace('../Homescreen-Board-Select-Page');
     } catch (err) {
       console.error('Create board error:', err);
       Alert.alert('Error', 'Failed to create board');

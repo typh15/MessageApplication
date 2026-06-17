@@ -348,8 +348,7 @@ Images are limited to 5 MB and supported content types are JPEG, PNG, and WebP.
 
 - The API uses singleton repositories, so most state lives only for the current process.
 - Uploaded image files are deleted on API startup by `ClearStoredImagesAsync()`.
-- There is no persistent database, authentication provider, password hashing, authorization policy, or production identity system yet.
-- Board passwords are stored as plain text in memory.
+- There is no persistent database, authentication provider, authorization policy, or production identity system yet.
 - Public board names must be unique, case-insensitively. Private board names are not checked by the same rule.
 - Private boards that are not password-protected cannot be joined directly by board ID; users must request access.
 - Image messages require the referenced image to belong to the sender.

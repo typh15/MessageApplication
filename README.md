@@ -1,6 +1,6 @@
 # Messaging App
 
-A full-stack message board application with an ASP.NET Core API and an Expo/React Native client. Users can register a session, create and join boards, request access to private boards, approve pending requests, and exchange messages through a polling-based chat UI.
+A full-stack message board application with an ASP.NET Core API and an Expo/React Native client. Users can register a session, create and join boards, request access to private boards, invite other users, manage a lightweight profile, and exchange text or image messages through a polling-based chat UI.
 
 This project is still development-focused. Most application state is stored in singleton, in-memory repositories, so users, accounts, boards, memberships, requests, invites, and messages reset when the API restarts. Uploaded images are written under `MessagingApp.Api/App_Data/images`, but that folder is cleared when the API starts.
 
@@ -43,23 +43,25 @@ MessagingApp/
 - Public and private message board creation.
 - Optional board password protection.
 - Unique board IDs for requesting access to private boards.
+- Password-based private-board joining by unique board ID.
 - Board list polling every 5 seconds.
 - Board detail and join-request polling every 5 seconds.
 - Message polling every 500 ms.
-- Text message sending with server timestamps and board-local/global message IDs.
+- Text and image message sending with server timestamps and board-local/global message IDs.
+- Image upload, image preview, and image rendering in chat.
 - Message deletion endpoint that only allows the original sender to delete their message.
 - Join-request approval workflow for current board members.
-- Backend endpoints for board invites and invite accept/reject flows.
-- Backend and client handler support for image upload and image message metadata.
-- Backend and client handler support for basic account profile data.
+- Board invites from the chat screen.
+- Invite accept/decline flows from the account screen.
+- Account screen for display name, public blurb, profile image, invites, and sign out.
 - Android, iOS, and web support through Expo.
 
-## What Is Not Fully Wired Yet
+## Functional But Needs More Testing
 
-- Board invitation endpoints exist in the API, but the current screens do not expose invite creation, invite lists, accept, or reject actions.
-- Image upload and image-message handlers exist, but the current chat screen only exposes text message composition.
-- Account profile endpoints and client handlers exist, but the current screen flow does not expose profile editing.
+- Invite creation, invite accept/decline, image messages, profile image upload, and password-based board joining are wired into the client and API, but still need broader manual testing across Android, iOS, and web.
+- Join-request approval is backed by the API. Denying a join request currently dismisses it in the client view; there is not a matching backend endpoint that permanently rejects/removes the request.
 - The Server URL field on the registration screen saves a value, but active API calls use the hardcoded client config value.
+- There are no automated tests yet for the newer account, invite, image upload, or image-message flows.
 
 ## Tech Stack
 
@@ -81,6 +83,9 @@ MessagingApp/
 - React `19.2.3`
 - TypeScript `~6.0.3`
 - Expo Router
+- Expo Image
+- Expo Image Picker
+- Expo Symbols
 - React Native StyleSheet styling
 - `@react-native-async-storage/async-storage`
 - Domain-specific API handler modules
@@ -170,10 +175,11 @@ Before running the full app, make sure the client URL points to the same reachab
 3. If validation fails, the saved session is cleared and the app opens `Login-Registration-Page`.
 4. Registration calls `/registration` and stores the returned `uniqueId` and username.
 5. The board screen uses `useBoards()` to poll available public boards and boards the user belongs to.
-6. Users can create boards, join visible boards, or request private-board access by unique board ID.
-7. `Chat-Page` uses polling hooks for messages, board details, and join requests.
-8. Chat shows a join-request button only when pending requests exist.
-9. `Board-Join-Requests-Page` lets board members approve pending requests.
+6. Users can create boards, join visible boards, join protected boards by unique board ID and password, or request private-board access by unique board ID.
+7. The board screen links to `Account-Page`, where users can edit profile data, upload a profile image, view invites, accept/decline invites, and sign out.
+8. `Chat-Page` uses polling hooks for messages, board details, and join requests.
+9. Chat supports text messages, image messages with optional captions, board member invites, and a join-request button when pending requests exist.
+10. `Board-Join-Requests-Page` lets board members approve pending requests.
 
 ## API Reference
 
@@ -394,6 +400,8 @@ eas build --platform android --profile preview
 - Add real authentication and authorization.
 - Hash board passwords before storing or comparing them.
 - Add real-time delivery with SignalR or another push mechanism.
-- Wire invitation, image-message, and account-profile features into the visible client UI.
+- Add a backend deny/reject endpoint for board join requests.
+- Harden invite, image-message, profile, and protected-board flows with broader manual testing.
+- Persist uploaded images instead of clearing image storage at API startup.
 - Improve board moderation and message deletion behavior.
-- Add automated tests for service rules and client API flows.
+- Add automated tests for service rules, controller behavior, and client API flows.

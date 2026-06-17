@@ -1,9 +1,23 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, TextInput } from 'react-native';
+import {
+    ActivityIndicator,
+    Alert,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
+import type { ImageUploadInput } from '@/APIHandlers/ApiHandlerHub';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { Button } from '@/components/ui/generic-button';
@@ -16,6 +30,33 @@ import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/hooks/use-session';
 
 const BOTTOM_THRESHOLD = 48;
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function inferImageContentType(fileNameOrUri: string | null | undefined): string {
+    const cleanValue = fileNameOrUri?.split('?')[0].toLowerCase() ?? '';
+
+    if (cleanValue.endsWith('.png')) return 'image/png';
+    if (cleanValue.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+}
+
+function getImageExtension(contentType: string): string {
+    if (contentType === 'image/png') return 'png';
+    if (contentType === 'image/webp') return 'webp';
+    return 'jpg';
+}
+
+function createImageUploadInput(asset: ImagePicker.ImagePickerAsset): ImageUploadInput {
+    const contentType = asset.mimeType ?? asset.file?.type ?? inferImageContentType(asset.fileName ?? asset.uri);
+    const name = asset.fileName ?? asset.file?.name ?? `picture-message.${getImageExtension(contentType)}`;
+
+    return {
+        uri: asset.uri,
+        name,
+        type: contentType,
+        file: asset.file,
+    };
+}
 
 export default function ChatScreen() {
     const params = useLocalSearchParams();
@@ -26,6 +67,7 @@ export default function ChatScreen() {
 
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<ImageUploadInput | null>(null);
     const [showScrollToBottom, setShowScrollToBottom] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
     const isNearBottomRef = useRef(true);
@@ -93,7 +135,9 @@ export default function ChatScreen() {
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!text.trim()) return;
+        const messageText = text.trim();
+
+        if (!messageText && !selectedImage) return;
 
         if (!session) {
             Alert.alert('Session expired', 'Please log in again before sending a message.');
@@ -103,7 +147,15 @@ export default function ChatScreen() {
 
         try {
             setLoading(true);
-            await APIHandler.sendMessage(text, boardId);
+
+            if (selectedImage) {
+                const uploadedImage = await APIHandler.uploadImage(selectedImage);
+                await APIHandler.sendImageMessage(boardId, uploadedImage.imageId, messageText);
+                setSelectedImage(null);
+            } else {
+                await APIHandler.sendMessage(messageText, boardId);
+            }
+
             setText('');
             await refreshMessages();
         } catch (err) {
@@ -115,6 +167,56 @@ export default function ChatScreen() {
         }
     };
 
+    const handlePickImage = async () => {
+        if (loading) return;
+
+        if (!session) {
+            Alert.alert('Session expired', 'Please log in again before choosing a picture.');
+            router.replace('../Login-Registration-Page');
+            return;
+        }
+
+        try {
+            if (Platform.OS !== 'web') {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+                if (!permission.granted) {
+                    Alert.alert('Photo access needed', 'Please allow photo access to send picture messages.');
+                    return;
+                }
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsMultipleSelection: false,
+                quality: 0.85,
+            });
+
+            if (result.canceled) {
+                return;
+            }
+
+            const pickedImage = result.assets[0];
+
+            if (!pickedImage?.uri) {
+                throw new Error('No picture was selected.');
+            }
+
+            const imageInput = createImageUploadInput(pickedImage);
+
+            if (imageInput.type && !SUPPORTED_IMAGE_TYPES.has(imageInput.type.toLowerCase())) {
+                Alert.alert('Unsupported picture', 'Please choose a JPEG, PNG, or WebP image.');
+                return;
+            }
+
+            setSelectedImage(imageInput);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unable to choose picture';
+            Alert.alert('Picture unavailable', errorMessage);
+            console.error('Choose picture error:', err);
+        }
+    };
+
     const handleNewUserRequest = async () => {
         router.push({
             pathname: '../Board-Join-Requests-Page',
@@ -123,7 +225,7 @@ export default function ChatScreen() {
     };
 
     const handleBackToBoards = () => {
-        router.back();
+        router.push('../Homescreen-Board-Select-Page');
     };
 
     return (
@@ -183,6 +285,8 @@ export default function ChatScreen() {
                                 message={message.content}
                                 timestamp={message.timestamp}
                                 isSentByCurrentUser={message.fromusername === session?.userName}
+                                messageType={message.messageType}
+                                imageId={message.imageId}
                             />
                         ))
                     )}
@@ -200,29 +304,92 @@ export default function ChatScreen() {
                     />
                 ) : null}
 
-                <ThemedView style={styles.composer}>
-                    <TextInput
-                        style={styles.messageInput}
-                        value={text}
-                        onChangeText={setText}
-                        placeholder="Type a message..."
-                        placeholderTextColor="#8E95A8"
-                        multiline
-                        editable={!loading}
-                    />
+                <ThemedView style={styles.composerShell}>
+                    {selectedImage ? (
+                        <ThemedView style={styles.selectedImagePreviewRow}>
+                            <Image
+                                source={{ uri: selectedImage.uri }}
+                                style={styles.selectedImageThumbnail}
+                                contentFit="cover"
+                            />
 
-                    <Button
-                        showText={false}
-                        showImage={true}
-                        imageSource={require("../../assets/images/SendButton.png")}
-                        onPress={handleSendMessage}
-                        disabled={loading || !session || !isValidBoardId || text.trim().length === 0}
-                        width={48}
-                        height={48}
-                        borderRadius={8}
-                        imageWidth={24}
-                        imageHeight={24}
-                    />
+                            <ThemedView style={styles.selectedImageCopy}>
+                                <ThemedText style={styles.selectedImageTitle} numberOfLines={1}>
+                                    Picture ready
+                                </ThemedText>
+                                <ThemedText style={styles.selectedImageName} numberOfLines={1}>
+                                    {selectedImage.name ?? 'Selected photo'}
+                                </ThemedText>
+                            </ThemedView>
+
+                            <Pressable
+                                onPress={() => setSelectedImage(null)}
+                                disabled={loading}
+                                accessibilityRole="button"
+                                accessibilityLabel="Remove selected picture"
+                                style={({ pressed }) => [
+                                    styles.removeImageButton,
+                                    pressed && styles.iconButtonPressed,
+                                    loading && styles.iconButtonDisabled,
+                                ]}
+                            >
+                                <SymbolView
+                                    name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                                    size={18}
+                                    weight="bold"
+                                    tintColor="#ffffff"
+                                />
+                            </Pressable>
+                        </ThemedView>
+                    ) : null}
+
+                    <ThemedView style={styles.composer}>
+                        <Pressable
+                            onPress={handlePickImage}
+                            disabled={loading || !session || !isValidBoardId}
+                            accessibilityRole="button"
+                            accessibilityLabel="Choose a picture"
+                            style={({ pressed }) => [
+                                styles.photoButton,
+                                pressed && styles.iconButtonPressed,
+                                (loading || !session || !isValidBoardId) && styles.iconButtonDisabled,
+                            ]}
+                        >
+                            {loading && selectedImage ? (
+                                <ActivityIndicator color="#ffffff" />
+                            ) : (
+                                <SymbolView
+                                    name={{ ios: 'photo', android: 'add_photo_alternate', web: 'add_photo_alternate' }}
+                                    size={24}
+                                    weight="bold"
+                                    tintColor="#ffffff"
+                                />
+                            )}
+                        </Pressable>
+
+                        <TextInput
+                            style={styles.messageInput}
+                            value={text}
+                            onChangeText={setText}
+                            placeholder={selectedImage ? 'Add a caption...' : 'Type a message...'}
+                            placeholderTextColor="#8E95A8"
+                            multiline
+                            editable={!loading}
+                        />
+
+                        <Button
+                            showText={false}
+                            showImage={true}
+                            imageSource={require("../../assets/images/SendButton.png")}
+                            onPress={handleSendMessage}
+                            disabled={loading || !session || !isValidBoardId || (text.trim().length === 0 && !selectedImage)}
+                            width={48}
+                            height={48}
+                            borderRadius={8}
+                            imageWidth={24}
+                            imageHeight={24}
+                        />
+                    </ThemedView>
                 </ThemedView>
             </SafeAreaView>
         </ThemedView>
@@ -289,12 +456,80 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
 
+    composerShell: {
+        gap: Spacing.two,
+        paddingTop: Spacing.two,
+        paddingBottom: Spacing.one,
+    },
+
     composer: {
         flexDirection: "row",
         alignItems: "flex-end",
         gap: Spacing.two,
-        paddingTop: Spacing.two,
-        paddingBottom: Spacing.one,
+    },
+
+    selectedImagePreviewRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.two,
+        padding: Spacing.two,
+        borderWidth: 1,
+        borderColor: "#4DACFF80",
+        borderRadius: 16,
+        backgroundColor: "#151923",
+    },
+
+    selectedImageThumbnail: {
+        width: 56,
+        height: 56,
+        borderRadius: 12,
+        backgroundColor: "#0B0D14",
+    },
+
+    selectedImageCopy: {
+        flex: 1,
+        minWidth: 0,
+    },
+
+    selectedImageTitle: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#ffffff",
+    },
+
+    selectedImageName: {
+        marginTop: Spacing.half,
+        fontSize: 12,
+        color: "#B0B4BA",
+    },
+
+    photoButton: {
+        width: 48,
+        height: 48,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#262f4b",
+        borderWidth: 1,
+        borderColor: "#4DACFF80",
+    },
+
+    removeImageButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#303342",
+    },
+
+    iconButtonPressed: {
+        opacity: 0.75,
+        transform: [{ scale: 0.96 }],
+    },
+
+    iconButtonDisabled: {
+        opacity: 0.45,
     },
 
     scrollToBottomButton: {

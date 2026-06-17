@@ -6,13 +6,20 @@ export async function uploadImage(
     image: ImageUploadInput
 ): Promise<ImageDataResponse> {
     const ownerUniqueId = await getStoredUniqueId();
+    const imageName = image.name ?? image.file?.name ?? 'image.jpg';
     const formData = new FormData();
     formData.append('ownerUniqueId', ownerUniqueId);
-    formData.append('image', {
-        uri: image.uri,
-        name: image.name ?? 'image.jpg',
-        type: image.type ?? 'image/jpeg',
-    } as any);
+
+    if (image.file) {
+        formData.append('image', image.file, imageName);
+    } else {
+        formData.append('image', {
+            uri: image.uri,
+            name: imageName,
+            type: image.type ?? 'image/jpeg',
+        } as any);
+        return await uploadImageWithXmlHttpRequest(formData);
+    }
 
     const response = await fetch(`${serverUrl}/images`, {
         method: 'POST',
@@ -22,10 +29,43 @@ export async function uploadImage(
     if (!response.ok) {
         const txt = await response.text();
         console.error('Upload image failed:', txt);
-        throw new Error('Upload image failed');
+        throw new Error(txt || 'Upload image failed');
     }
 
     return await response.json();
+}
+
+function uploadImageWithXmlHttpRequest(formData: FormData): Promise<ImageDataResponse> {
+    return new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+
+        request.open('POST', `${serverUrl}/images`);
+
+        request.onload = () => {
+            if (request.status < 200 || request.status >= 300) {
+                console.error('Upload image failed:', request.responseText);
+                reject(new Error(request.responseText || 'Upload image failed'));
+                return;
+            }
+
+            try {
+                resolve(JSON.parse(request.responseText));
+            } catch (err) {
+                reject(err instanceof Error ? err : new Error('Upload image failed'));
+            }
+        };
+
+        request.onerror = () => {
+            reject(new Error('Upload image failed'));
+        };
+
+        request.ontimeout = () => {
+            reject(new Error('Upload image timed out'));
+        };
+
+        request.timeout = 30000;
+        request.send(formData);
+    });
 }
 
 export function getImageUrl(imageId: string): string {

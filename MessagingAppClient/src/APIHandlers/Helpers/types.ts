@@ -40,6 +40,7 @@ export interface ImageUploadInput {
     uri: string;
     name?: string;
     type?: string;
+    file?: File;
 }
 
 export interface SendMessageOptions {

@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
+import { Image } from 'expo-image';
 import { View, StyleSheet } from 'react-native';
 
+import { getImageUrl } from '@/APIHandlers/ApiHandlerHub';
 import { ThemedText } from '../GenericComponents/themed-text';
-import { ThemedView } from '../GenericComponents/themed-view';
 
 import { Spacing } from '@/constants/theme';
 
@@ -11,8 +11,17 @@ type MessageBoxProps = {
     message: string;
     timestamp: string;
     isSentByCurrentUser: boolean;
+    messageType?: 'text' | 'image';
+    imageId?: string;
 };
-export function MessageBox({ sender, message, timestamp, isSentByCurrentUser,}: MessageBoxProps) {
+export function MessageBox({
+    sender,
+    message,
+    timestamp,
+    isSentByCurrentUser,
+    messageType = 'text',
+    imageId,
+}: MessageBoxProps) {
     const date = new Date(timestamp);
     const formattedDate = new Intl.DateTimeFormat("en-US").format(date);
     const formattedTime = date.toLocaleTimeString([], {
@@ -20,10 +29,15 @@ export function MessageBox({ sender, message, timestamp, isSentByCurrentUser,}: 
                             minute: "2-digit", });
 
     const formattedDateTime = `${formattedTime} \u00B7 ${formattedDate}`;
+    const isImageMessage = messageType === 'image';
+    const trimmedMessage = message.trim();
 
     return (
-        <View style={[ styles.messageContainer, 
-                        isSentByCurrentUser ? styles.sentMessage : styles.receivedMessage, ]}>
+        <View style={[
+            styles.messageContainer,
+            isImageMessage && styles.imageMessageContainer,
+            isSentByCurrentUser ? styles.sentMessage : styles.receivedMessage,
+        ]}>
             <View style={styles.messageHeader}>
                 <ThemedText style={styles.sender} numberOfLines={1}>
                     {sender}
@@ -34,9 +48,27 @@ export function MessageBox({ sender, message, timestamp, isSentByCurrentUser,}: 
                 </ThemedText>
             </View>
 
-            <ThemedText style={styles.message}>
-                {message}
-            </ThemedText>
+            {isImageMessage && imageId ? (
+                <Image
+                    source={{ uri: getImageUrl(imageId) }}
+                    style={styles.messageImage}
+                    contentFit="cover"
+                    transition={120}
+                    accessibilityLabel={trimmedMessage || 'Picture message'}
+                />
+            ) : null}
+
+            {isImageMessage && !imageId ? (
+                <ThemedText style={styles.unavailableImageText}>
+                    Image unavailable
+                </ThemedText>
+            ) : null}
+
+            {trimmedMessage ? (
+                <ThemedText style={[styles.message, isImageMessage && styles.imageCaption]}>
+                    {trimmedMessage}
+                </ThemedText>
+            ) : null}
         </View>
     );
 }
@@ -47,6 +79,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
         borderRadius: 18,
+    },
+
+    imageMessageContainer: {
+        width: 296,
     },
 
     sentMessage: {
@@ -84,5 +120,22 @@ const styles = StyleSheet.create({
         fontSize: 17,
         lineHeight: 22,
         color: "#FFFFFF",
+    },
+
+    imageCaption: {
+        marginTop: Spacing.two,
+    },
+
+    messageImage: {
+        width: "100%",
+        height: 220,
+        borderRadius: 12,
+        backgroundColor: "#151923",
+    },
+
+    unavailableImageText: {
+        color: "#E5E8F2",
+        fontSize: 15,
+        opacity: 0.82,
     },
 });

@@ -28,35 +28,9 @@ import { useBoardJoinRequests } from '@/hooks/API/use-board-join-requests';
 import { useMessages } from '@/hooks/API/use-messages';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/hooks/use-session';
+import { createImageUploadInput, SUPPORTED_IMAGE_TYPES } from '@/utils/image-upload';
 
 const BOTTOM_THRESHOLD = 48;
-const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
-function inferImageContentType(fileNameOrUri: string | null | undefined): string {
-    const cleanValue = fileNameOrUri?.split('?')[0].toLowerCase() ?? '';
-
-    if (cleanValue.endsWith('.png')) return 'image/png';
-    if (cleanValue.endsWith('.webp')) return 'image/webp';
-    return 'image/jpeg';
-}
-
-function getImageExtension(contentType: string): string {
-    if (contentType === 'image/png') return 'png';
-    if (contentType === 'image/webp') return 'webp';
-    return 'jpg';
-}
-
-function createImageUploadInput(asset: ImagePicker.ImagePickerAsset): ImageUploadInput {
-    const contentType = asset.mimeType ?? asset.file?.type ?? inferImageContentType(asset.fileName ?? asset.uri);
-    const name = asset.fileName ?? asset.file?.name ?? `picture-message.${getImageExtension(contentType)}`;
-
-    return {
-        uri: asset.uri,
-        name,
-        type: contentType,
-        file: asset.file,
-    };
-}
 
 export default function ChatScreen() {
     const params = useLocalSearchParams();
@@ -67,6 +41,8 @@ export default function ChatScreen() {
 
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [inviteUserName, setInviteUserName] = useState('');
+    const [invitingUser, setInvitingUser] = useState(false);
     const [selectedImage, setSelectedImage] = useState<ImageUploadInput | null>(null);
     const [showScrollToBottom, setShowScrollToBottom] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
@@ -202,7 +178,7 @@ export default function ChatScreen() {
                 throw new Error('No picture was selected.');
             }
 
-            const imageInput = createImageUploadInput(pickedImage);
+            const imageInput = createImageUploadInput(pickedImage, 'picture-message');
 
             if (imageInput.type && !SUPPORTED_IMAGE_TYPES.has(imageInput.type.toLowerCase())) {
                 Alert.alert('Unsupported picture', 'Please choose a JPEG, PNG, or WebP image.');
@@ -222,6 +198,34 @@ export default function ChatScreen() {
             pathname: '../Board-Join-Requests-Page',
             params: { boardId: boardId.toString() },
         });
+    };
+
+    const handleInviteUser = async () => {
+        const userName = inviteUserName.trim();
+
+        if (!userName) {
+            Alert.alert('Enter username', 'Please enter the username to invite.');
+            return;
+        }
+
+        if (!session) {
+            Alert.alert('Session expired', 'Please log in again before inviting a user.');
+            router.replace('../Login-Registration-Page');
+            return;
+        }
+
+        try {
+            setInvitingUser(true);
+            await APIHandler.inviteUserToBoard(boardId, userName);
+            setInviteUserName('');
+            Alert.alert('Invite sent', `${userName} can accept the invite from their account page.`);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to invite user';
+            Alert.alert('Error', errorMessage);
+            console.error('Invite user error:', err);
+        } finally {
+            setInvitingUser(false);
+        }
     };
 
     const handleBackToBoards = () => {
@@ -264,6 +268,26 @@ export default function ChatScreen() {
                             borderRadius={8}
                         />
                     ) : null}
+                </ThemedView>
+
+                <ThemedView style={styles.boardTools}>
+                    <TextInput
+                        value={inviteUserName}
+                        onChangeText={setInviteUserName}
+                        placeholder="Invite username"
+                        placeholderTextColor="#8E95A8"
+                        style={styles.inviteInput}
+                        autoCapitalize="none"
+                        editable={!invitingUser}
+                    />
+                    <Button
+                        showText={true}
+                        buttonText={invitingUser ? 'Inviting...' : 'Invite'}
+                        onPress={handleInviteUser}
+                        disabled={invitingUser || !session || !isValidBoardId}
+                        style={styles.inviteButton}
+                        textStyle={styles.inviteButtonText}
+                    />
                 </ThemedView>
 
                 <ScrollView
@@ -432,6 +456,40 @@ const styles = StyleSheet.create({
         fontSize: 12,
         opacity: 0.7,
         marginTop: Spacing.one,
+    },
+
+    boardTools: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.two,
+        paddingTop: Spacing.three,
+        paddingBottom: Spacing.one,
+    },
+
+    inviteInput: {
+        flex: 1,
+        minHeight: 42,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#4DACFF80',
+        backgroundColor: '#151923',
+        color: '#ffffff',
+        paddingHorizontal: Spacing.three,
+        paddingVertical: Spacing.two,
+    },
+
+    inviteButton: {
+        backgroundColor: '#007AFF',
+        borderRadius: 8,
+        paddingHorizontal: Spacing.three,
+        paddingVertical: Spacing.two,
+        minHeight: 42,
+    },
+
+    inviteButtonText: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '700',
     },
 
     messageScroll: {

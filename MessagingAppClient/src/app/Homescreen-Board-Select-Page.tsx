@@ -13,20 +13,15 @@ import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 
 import { Button } from '@/components/ui/generic-button';
 
-type HomeOverlay =
-    | 'new-board'
-    | 'request-access'
-    | 'invites'
-    | 'profile'
-    | 'user-search';
-
 export default function BoardSelectionScreen() {
     const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
     const [joining, setJoining] = useState(false);
-    const [searchBoardId, setSearchBoardId] = useState('');
+    const [joinBoardId, setJoinBoardId] = useState('');
+    const [joinPassword, setJoinPassword] = useState('');
+    const [joiningByCode, setJoiningByCode] = useState(false);
+    const [requestBoardId, setRequestBoardId] = useState('');
     const [requestingJoin, setRequestingJoin] = useState(false);
     const [actionError, setActionError] = useState('');
-    const [activeOverlay, setActiveOverlay] = useState<HomeOverlay | null>(null);
     const router = useRouter();
 
     const {
@@ -46,19 +41,69 @@ export default function BoardSelectionScreen() {
 
     const contentPlatformStyle = Platform.select({
         android: {
-        paddingTop: insets.top,
-        paddingLeft: insets.left,
-        paddingRight: insets.right,
-        paddingBottom: insets.bottom,
+            paddingTop: insets.top,
+            paddingLeft: insets.left,
+            paddingRight: insets.right,
+            paddingBottom: insets.bottom,
         },
         web: {
-        paddingTop: Spacing.six,
-        paddingBottom: Spacing.four,
+            paddingTop: Spacing.six,
+            paddingBottom: Spacing.four,
         },
     });
 
+    const handleJoinProtectedBoard = async () => {
+        const uniqueBoardId = joinBoardId.trim();
+        const password = joinPassword.trim();
+
+        if (!uniqueBoardId) {
+            Alert.alert('Enter board ID', 'Please enter the unique board ID.');
+            return;
+        }
+
+        if (!password) {
+            Alert.alert('Enter password', 'Please enter the board password.');
+            return;
+        }
+
+        try {
+            setJoiningByCode(true);
+            setActionError('');
+            await APIHandler.joinBoardByCode(uniqueBoardId, password);
+
+            const updatedBoards = await refreshBoards();
+            const joinedBoard = updatedBoards?.find(
+                (board) => board.uniqueBoardId?.toLowerCase() === uniqueBoardId.toLowerCase()
+            );
+
+            setJoinBoardId('');
+            setJoinPassword('');
+
+            if (joinedBoard) {
+                router.push({
+                    pathname: '../Chat-Page',
+                    params: { boardId: joinedBoard.boardId.toString() },
+                });
+                return;
+            }
+
+            Alert.alert('Joined board', 'The board was added to your list.');
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to join board';
+            setActionError(errorMessage);
+            console.error('Join protected board error:', err);
+            Alert.alert('Error', errorMessage);
+        }
+        finally {
+            setJoiningByCode(false);
+        }
+    };
+
     const handleRequestBoardByUniqueId = async () => {
-        if (!searchBoardId.trim()) {
+        const uniqueBoardId = requestBoardId.trim();
+
+        if (!uniqueBoardId) {
             Alert.alert('Enter board ID', 'Please enter the unique board ID to request access.');
             return;
         }
@@ -66,17 +111,17 @@ export default function BoardSelectionScreen() {
         try {
             setRequestingJoin(true);
             setActionError('');
-            await APIHandler.requestBoardMembership(searchBoardId.trim());
+            await APIHandler.requestBoardMembership(uniqueBoardId);
             Alert.alert('Request sent', 'Your request to join the board has been submitted.');
-            setSearchBoardId('');
+            setRequestBoardId('');
             await refreshBoards();
-        } 
+        }
         catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to request board access';
             setActionError(errorMessage);
             console.error('Request board join error:', err);
             Alert.alert('Error', errorMessage);
-        } 
+        }
         finally {
             setRequestingJoin(false);
         }
@@ -88,25 +133,24 @@ export default function BoardSelectionScreen() {
             setSelectedBoardId(boardId);
             setActionError('');
             await APIHandler.joinMessageBoard(boardId);
-            console.log('Joined board:', boardId);
 
             router.push({
                 pathname: '../Chat-Page',
                 params: { boardId: boardId.toString() },
             });
-        } 
+        }
         catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to join board';
             setActionError(errorMessage);
             console.error('Join board error:', err);
-        } 
+        }
         finally {
             setJoining(false);
             setSelectedBoardId(null);
         }
     };
-/*
-    const HomescreenOverlay = () => (
+
+    const renderBoardCard = (board: MessageBoard) => (
         <ThemedView style={[styles.boardCard, { borderColor: theme.text + '90' }]}>
             <ThemedView style={styles.boardInfo}>
                 <ThemedText type="subtitle" style={styles.boardName}>
@@ -114,133 +158,142 @@ export default function BoardSelectionScreen() {
                 </ThemedText>
 
                 <ThemedView style={styles.boardMeta}>
-                    {board.visibleToPublic && 
-                    (
+                    {board.visibleToPublic ? (
                         <ThemedText style={styles.badgeText}>Public</ThemedText>
+                    ) : (
+                        <ThemedText style={styles.badgeText}>Private</ThemedText>
                     )}
 
-                {board.passwordProtected && (
-                    <ThemedText style={styles.badgeText}>Protected</ThemedText>
-                )}
+                    {board.passwordProtected ? (
+                        <ThemedText style={styles.badgeText}>Protected</ThemedText>
+                    ) : null}
                 </ThemedView>
             </ThemedView>
 
-
             <Button
                 showText={true}
-                buttonText="New Board"
-                onPress={() => router.push('/Board-Creation-Page')}
-                style={styles.newBoardButton}
-                textStyle={styles.newBoardButtonText}
+                buttonText="Join"
+                onPress={() => handleJoinBoard(board.boardId)}
+                disabled={joining && selectedBoardId === board.boardId}
+                style={styles.joinButton}
+                textStyle={styles.joinButtonText}
             />
-        </ThemedView>
-    );
-
-*/
-    const renderBoardCard = (board: MessageBoard) => (
-        <ThemedView style={[styles.boardCard, { borderColor: theme.text + '90' }]}>
-        <ThemedView style={styles.boardInfo}>
-            <ThemedText type="subtitle" style={styles.boardName}>
-                {board.boardName}
-            </ThemedText>
-
-            <ThemedView style={styles.boardMeta}>
-            {board.visibleToPublic && (
-                <ThemedText style={styles.badgeText}>Public</ThemedText>
-            )}
-
-            {board.passwordProtected && (
-                <ThemedText style={styles.badgeText}>Protected</ThemedText>
-            )}
-            </ThemedView>
-        </ThemedView>
-
-        <Button
-            showText={true}
-            buttonText="Join"
-            onPress={() => handleJoinBoard(board.boardId)}
-            disabled={joining && selectedBoardId === board.boardId}
-            style={styles.joinButton}
-            textStyle={styles.joinButtonText}
-        />
         </ThemedView>
     );
 
     return (
         <ThemedView style={styles.container}>
-        <ScrollView
-            contentInset={insets}
-            contentContainerStyle={contentPlatformStyle}
-            scrollEnabled={boards.length > 3}>
-            <ThemedView style={styles.headerContainer}>
-            <ThemedView style={styles.headerTop}>
-                <ThemedText type="title">Message Boards</ThemedText>
+            <ScrollView
+                contentInset={insets}
+                contentContainerStyle={contentPlatformStyle}>
+                <ThemedView style={styles.headerContainer}>
+                    <ThemedView style={styles.headerTop}>
+                        <ThemedText type="title">Message Boards</ThemedText>
 
-                <Button
-                showText={true}
-                buttonText="New Board"
-                onPress={() => router.push('/Board-Creation-Page')}
-                style={styles.newBoardButton}
-                textStyle={styles.newBoardButtonText}
-                />
-            </ThemedView>
+                        <ThemedView style={styles.headerActions}>
+                            <Button
+                                showText={true}
+                                buttonText="Account"
+                                onPress={() => router.push('../Account-Page')}
+                                style={styles.secondaryHeaderButton}
+                                textStyle={styles.secondaryHeaderButtonText}
+                            />
 
-            <ThemedText type="subtitle" style={styles.subtitle}>
-                Select a board to join
-            </ThemedText>
+                            <Button
+                                showText={true}
+                                buttonText="New Board"
+                                onPress={() => router.push('/Board-Creation-Page')}
+                                style={styles.newBoardButton}
+                                textStyle={styles.newBoardButtonText}
+                            />
+                        </ThemedView>
+                    </ThemedView>
 
-            <ThemedView style={styles.requestSection}>
-                <ThemedText style={styles.requestLabel}>Request access to a private board</ThemedText>
-                <TextInput
-                value={searchBoardId}
-                onChangeText={setSearchBoardId}
-                placeholder="Enter unique board ID"
-                placeholderTextColor="#8E95A8"
-                style={styles.searchInput}
-                autoCapitalize="none"
-                />
-                <Button
-                showText={true}
-                buttonText={requestingJoin ? 'Requesting...' : 'Request Access'}
-                onPress={handleRequestBoardByUniqueId}
-                disabled={requestingJoin}
-                style={styles.requestButton}
-                textStyle={styles.requestButtonText}
-                />
-                <ThemedText style={styles.requestHint}>
-                Use the unique board ID for private boards only.
-                </ThemedText>
-            </ThemedView>
-            </ThemedView>
+                    <ThemedText type="subtitle" style={styles.subtitle}>
+                        Select a board to join
+                    </ThemedText>
 
-            {errorMessage ? (
-            <ThemedView style={[styles.errorContainer, { borderColor: '#ff4444' }]}>
-                <ThemedText style={{ color: '#ff4444' }}>{errorMessage}</ThemedText>
+                    <ThemedView style={styles.privateAccessGrid}>
+                        <ThemedView style={[styles.accessSection, { borderColor: theme.genericborder }]}>
+                            <ThemedText style={styles.requestLabel}>Join a protected private board</ThemedText>
+                            <TextInput
+                                value={joinBoardId}
+                                onChangeText={setJoinBoardId}
+                                placeholder="Unique board ID"
+                                placeholderTextColor="#8E95A8"
+                                style={styles.searchInput}
+                                autoCapitalize="none"
+                                editable={!joiningByCode}
+                            />
+                            <TextInput
+                                value={joinPassword}
+                                onChangeText={setJoinPassword}
+                                placeholder="Board password"
+                                placeholderTextColor="#8E95A8"
+                                style={styles.searchInput}
+                                autoCapitalize="none"
+                                secureTextEntry
+                                editable={!joiningByCode}
+                            />
+                            <Button
+                                showText={true}
+                                buttonText={joiningByCode ? 'Joining...' : 'Join With Password'}
+                                onPress={handleJoinProtectedBoard}
+                                disabled={joiningByCode}
+                                style={styles.requestButton}
+                                textStyle={styles.requestButtonText}
+                            />
+                            <ThemedText style={styles.requestHint}>
+                                Use this when the board owner shared both the board ID and password.
+                            </ThemedText>
+                        </ThemedView>
 
-                <Button
-                showText={true}
-                buttonText="New Board"
-                onPress={() => router.push('/Board-Creation-Page')}
-                style={styles.retryButton}
-                textStyle={styles.buttonText}
-                />
-            </ThemedView>
-            ) : null}
-
-            {boards.length === 0 ? (
-            <ThemedView style={styles.emptyContainer}>
-                <ThemedText style={styles.emptyText}>No boards available</ThemedText>
-            </ThemedView>
-            ) : (
-            <ThemedView style={styles.boardsList}>
-                {boards.map((board) => (
-                <ThemedView key={board.boardId} style={styles.boardCardWrapper}>
-                    {renderBoardCard(board)}
+                        <ThemedView style={[styles.accessSection, { borderColor: theme.genericborder }]}>
+                            <ThemedText style={styles.requestLabel}>Request access to a private board</ThemedText>
+                            <TextInput
+                                value={requestBoardId}
+                                onChangeText={setRequestBoardId}
+                                placeholder="Unique board ID"
+                                placeholderTextColor="#8E95A8"
+                                style={styles.searchInput}
+                                autoCapitalize="none"
+                                editable={!requestingJoin}
+                            />
+                            <Button
+                                showText={true}
+                                buttonText={requestingJoin ? 'Requesting...' : 'Request Access'}
+                                onPress={handleRequestBoardByUniqueId}
+                                disabled={requestingJoin}
+                                style={styles.requestButton}
+                                textStyle={styles.requestButtonText}
+                            />
+                            <ThemedText style={styles.requestHint}>
+                                The board owner can approve this from the board chat.
+                            </ThemedText>
+                        </ThemedView>
+                    </ThemedView>
                 </ThemedView>
-                ))}
-            </ThemedView>
-            )}
-        </ScrollView>
+
+                {errorMessage ? (
+                    <ThemedView style={[styles.errorContainer, { borderColor: '#ff4444' }]}>
+                        <ThemedText style={{ color: '#ff4444' }}>{errorMessage}</ThemedText>
+                    </ThemedView>
+                ) : null}
+
+                {boards.length === 0 ? (
+                    <ThemedView style={styles.emptyContainer}>
+                        <ThemedText style={styles.emptyText}>No boards available</ThemedText>
+                    </ThemedView>
+                ) : (
+                    <ThemedView style={styles.boardsList}>
+                        {boards.map((board) => (
+                            <ThemedView key={board.boardId} style={styles.boardCardWrapper}>
+                                {renderBoardCard(board)}
+                            </ThemedView>
+                        ))}
+                    </ThemedView>
+                )}
+            </ScrollView>
         </ThemedView>
     );
 }
@@ -259,6 +312,12 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.two,
         gap: Spacing.three,
     },
+    headerActions: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: Spacing.two,
+    },
     newBoardButton: {
         backgroundColor: '#007AFF',
         paddingHorizontal: Spacing.three,
@@ -266,6 +325,17 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     newBoardButtonText: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    secondaryHeaderButton: {
+        backgroundColor: '#303342',
+        paddingHorizontal: Spacing.three,
+        paddingVertical: Spacing.two,
+        borderRadius: 8,
+    },
+    secondaryHeaderButtonText: {
         color: '#ffffff',
         fontSize: 14,
         fontWeight: '600',
@@ -328,18 +398,6 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.four,
         gap: Spacing.two,
     },
-    retryButton: {
-        backgroundColor: '#007AFF',
-        borderRadius: 6,
-        paddingHorizontal: Spacing.three,
-        paddingVertical: Spacing.two,
-        alignSelf: 'flex-start',
-    },
-    buttonText: {
-        color: '#ffffff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -349,22 +407,31 @@ const styles = StyleSheet.create({
         fontSize: 16,
         opacity: 0.6,
     },
-    requestSection: {
+    privateAccessGrid: {
         marginTop: Spacing.four,
+        gap: Spacing.three,
+    },
+    accessSection: {
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: Spacing.three,
         gap: Spacing.two,
+        backgroundColor: '#11131A',
     },
     requestLabel: {
         fontSize: 14,
-        opacity: 0.8,
+        fontWeight: '700',
+        opacity: 0.9,
     },
     searchInput: {
         backgroundColor: '#1c1c1e',
         borderColor: '#444',
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: 8,
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
         color: '#ffffff',
+        minHeight: 48,
     },
     requestButton: {
         backgroundColor: '#007AFF',
@@ -372,6 +439,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.four,
         paddingVertical: Spacing.two,
         alignSelf: 'flex-start',
+        minHeight: 40,
     },
     requestButtonText: {
         color: '#ffffff',

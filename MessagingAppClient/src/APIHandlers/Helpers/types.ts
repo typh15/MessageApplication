@@ -52,3 +52,9 @@ export interface BoardJoinRequest {
     userName: string;
     uniqueId: string;
 }
+
+export interface MessageBoardInvite {
+    boardId: number;
+    boardName: string;
+    uniqueBoardId?: string;
+}

@@ -2,7 +2,7 @@
 
 A full-stack message board application with an ASP.NET Core API and an Expo/React Native client. Users can register a session, create and join boards, request access to private boards, invite other users, manage a lightweight profile, and exchange text or image messages through a polling-based chat UI.
 
-This project is still development-focused. Most application state is stored in singleton, in-memory repositories, so users, accounts, boards, memberships, requests, invites, and messages reset when the API restarts. Uploaded images are written under `MessagingApp.Api/App_Data/images`, but that folder is cleared when the API starts.
+This project is still development-focused. Most application state is stored in singleton, in-memory repositories, so users, accounts, boards, memberships, requests, invites, and messages reset when the API restarts. Uploaded images are written under `MessagingApp.Api/App_Data/images`, but that folder is cleared when the API starts as the in-memory repository has the metadata needed to reference the saved images.
 
 ## Project Structure
 
@@ -58,7 +58,7 @@ MessagingApp/
 
 ## Functional But Needs More Testing
 
-- Invite creation, invite accept/decline, image messages, profile image upload, and password-based board joining are wired into the client and API, but still need broader manual testing across Android, iOS, and web.
+- Invite creation, invite accept/decline, and password-based board joining are wired into the client and API, but still need broader manual testing across Android, iOS, and web.
 - Join-request approval is backed by the API. Denying a join request currently dismisses it in the client view; there is not a matching backend endpoint that permanently rejects/removes the request.
 - The Server URL field on the registration screen saves a value, but active API calls use the hardcoded client config value.
 - There are no automated tests yet for the newer account, invite, image upload, or image-message flows.
@@ -397,10 +397,8 @@ eas build --platform android --profile preview
 - Replace in-memory repositories with persistent storage.
 - Move API host configuration out of hardcoded constants.
 - Add real authentication and authorization.
-- Hash board passwords before storing or comparing them.
-- Add real-time delivery with SignalR or another push mechanism.
-- Add a backend deny/reject endpoint for board join requests.
-- Harden invite, image-message, profile, and protected-board flows with broader manual testing.
-- Persist uploaded images instead of clearing image storage at API startup.
+- Add real-time delivery with SignalR or another push mechanism. Thinking web hooks, honestly.
+- Harden invite, profile, and protected-board flows with broader manual testing.
+- Persist uploaded images instead of clearing image storage at API startup(Metadata is not persistent so I don't want a buildup of lost images while testing).
 - Improve board moderation and message deletion behavior.
 - Add automated tests for service rules, controller behavior, and client API flows.

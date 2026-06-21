@@ -19,6 +19,7 @@ export function createMessageFromServerMessage(
     const messageId = msg?.globalId ?? `${boardId}-${msg?.id ?? ''}`;
     const timestamp = msg?.serverTimestamp ?? msg?.clientTimestamp ?? new Date().toISOString();
     const from = msg?.fromUserName ?? fallbackFrom;
+    const displayName = msg?.fromDisplayName;
     const content = msg?.content ?? fallbackText;
     const messageType = normalizeMessageType(msg?.messageType);
     const imageId = msg?.imageId ?? undefined;
@@ -30,6 +31,7 @@ export function createMessageFromServerMessage(
         timestamp,
         content,
         messageType,
-        imageId
+        imageId,
+        displayName
     );
 }

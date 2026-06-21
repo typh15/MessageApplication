@@ -67,8 +67,26 @@ export default function ApprovalRequestsScreen() {
     };
 
     const handleDenyUser = async (user: ApprovalUser) => {
-        setDismissedUserNames((current) => [...current, user.userName]);
-        Alert.alert('Denied', `${user.userName}'s request has been denied`);
+        try {
+            setProcessingUserName(user.userName);
+
+            await APIHandler.denyRequestedMembership(
+                boardId,
+                user.userName
+            );
+
+            setDismissedUserNames((current) => [...current, user.userName]);
+            await refreshJoinRequests();
+
+            Alert.alert('Success', `${user.userName}'s request to join the board has been denied`);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to deny user';
+            console.error('Denial error:', err);
+            Alert.alert('Error', errorMessage);
+        } finally {
+            setProcessingUserName(null);
+        }
+
     };
 
     const handleBackToChat = () => {

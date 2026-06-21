@@ -9,4 +9,5 @@ public interface IActiveUserRepository
     Task RemoveInactiveUsersAsync(TimeSpan inactivityThreshold);
     Task<ActiveUser?> GetActiveUserByUniqueId(string uniqueId);
     Task<List<int>> GetAllInvitedBoardIds(string uniqueId);
+    Task<ActiveUser?> GetActiveUserByUserName(string userName);
 }

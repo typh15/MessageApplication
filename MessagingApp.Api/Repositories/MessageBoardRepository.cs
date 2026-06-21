@@ -128,6 +128,7 @@ class MessageBoardRepository : IMessageBoardRepository
             var newChatMessage = new ChatMessage(
                 chatMessage.Id,
                 chatMessage.FromUserName,
+                chatMessage.FromDisplayName,
                 boardid,
                 chatMessage.ClientTimestamp,
                 chatMessage.ServerTimestamp,

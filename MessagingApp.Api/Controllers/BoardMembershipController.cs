@@ -82,6 +82,26 @@ public class BoardMembershipController : ControllerBase
         return Ok();
     }
 
+    [HttpPost("/message-boards/{boardId}/denials")]
+    public async Task<IActionResult> AttemptMessageBoardDenialAsync(
+        int boardId,
+        string memberUniqueId,
+        string userName)
+    {   
+        var success = await chatService.DenyUserJoinRequest(
+            boardId,
+            memberUniqueId,
+            userName
+        );
+
+        if (!success)
+        {
+            return BadRequest("Unable to deny message board join request.");
+        }
+
+        return Ok();
+    }
+
     [HttpGet("/message-boards/{boardId}/requests")]
     public async Task<IActionResult> GetBoardJoinRequestsAsync(
         int boardId,

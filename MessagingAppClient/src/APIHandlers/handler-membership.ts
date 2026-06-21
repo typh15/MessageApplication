@@ -18,6 +18,22 @@ export async function approveOfRequestedMembership(boardId: number, reqUserName:
     return true;
 }
 
+export async function denyRequestedMembership(boardId: number, reqUserName: string) {
+    const memberUniqueId = await getStoredUniqueId();
+    const response = await fetch(
+        `${serverUrl}/message-boards/${boardId}/denials?memberUniqueId=${encodeURIComponent(memberUniqueId)}&userName=${encodeURIComponent(reqUserName)}`,
+        { method: 'POST' }
+    );
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Failed to Deny Member Join:', txt);
+        throw new Error('Failed to Deny Member Join');
+    }
+
+    return true;
+}
+
 export async function requestBoardMembership(uniqueBoardId: string, password?: string) {
     const uniqueId = await getStoredUniqueId();
 

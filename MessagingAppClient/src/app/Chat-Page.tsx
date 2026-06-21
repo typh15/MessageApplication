@@ -232,6 +232,13 @@ export default function ChatScreen() {
         router.push('../Homescreen-Board-Select-Page');
     };
 
+    const format_displayname = (userName:string, displayName?: string) => {
+        if (displayName === "" || displayName == null) {
+            return userName
+        }
+        return displayName + ' (' + userName + ')'
+    }
+
     return (
         <ThemedView style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
@@ -305,7 +312,7 @@ export default function ChatScreen() {
                         messages.map((message) => (
                             <MessageBox
                                 key={message.id}
-                                sender={message.fromusername}
+                                sender={format_displayname(message.fromusername, message.displayName)}
                                 message={message.content}
                                 timestamp={message.timestamp}
                                 isSentByCurrentUser={message.fromusername === session?.userName}

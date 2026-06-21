@@ -7,6 +7,7 @@ class Message_Class {
     content: string;
     messageType: 'text' | 'image';
     imageId?: string;
+    displayName?: string;
 
     constructor(
         id: string,
@@ -15,7 +16,8 @@ class Message_Class {
         timestamp: string,
         content: string,
         messageType: 'text' | 'image' = 'text',
-        imageId?: string
+        imageId?: string,
+        displayName?: string
     ) {
         this.id = id;
         this.fromusername = fromusername;
@@ -24,6 +26,7 @@ class Message_Class {
         this.content = content;
         this.messageType = messageType;
         this.imageId = imageId;
+        this.displayName = displayName;
     }   
 }
 

@@ -53,6 +53,16 @@ class ActiveUserRepository : IActiveUserRepository
         return Task.FromResult<ActiveUser?>(null);
     }
 
+    public Task<ActiveUser?> GetActiveUserByUserName(string userName)
+    {
+        var selectedUser = activeUsers.FirstOrDefault(u => u.UserName == userName);
+        if (userName != null)
+        {
+            return Task.FromResult(selectedUser);
+        }
+        return Task.FromResult<ActiveUser?>(null);
+    }
+
     public Task<bool> IsUserActiveAsync(string uniqueId)
     {
         var user = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);

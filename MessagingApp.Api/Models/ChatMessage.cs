@@ -2,6 +2,7 @@ public class ChatMessage
 {
     public int Id { get; set; }
     public string FromUserName { get; set; }
+    public string FromDisplayName { get; set; }
     public int BoardId { get; set; }
     public DateTime ClientTimestamp { get; set; }
     public DateTime ServerTimestamp { get; set; }
@@ -13,12 +14,14 @@ public class ChatMessage
 
 
     public ChatMessage(int id, string fromUserName, 
+    string fromDisplayName, 
     int boardId, DateTime clientTimestamp, 
     DateTime serverTimestamp, string content, 
     MessageTypeEnum messageType, string? imageId)
     {
         Id = id;
         FromUserName = fromUserName;
+        FromDisplayName = fromDisplayName;
         BoardId = boardId;
         ClientTimestamp = clientTimestamp;
         ServerTimestamp = serverTimestamp;

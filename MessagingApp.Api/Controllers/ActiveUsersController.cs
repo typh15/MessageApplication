@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 public class ActiveUsersController : ControllerBase
 {
     private readonly IChatServices chatService;
+    private readonly IAccountServices accountServices;
 
 
-    public ActiveUsersController(IChatServices chatService)
+    public ActiveUsersController(IChatServices chatService, IAccountServices accountServices)
     {
         this.chatService = chatService;
+        this.accountServices = accountServices;
     }
 
     
@@ -38,11 +40,42 @@ public class ActiveUsersController : ControllerBase
     {
 
         var result = await chatService.GetAllActiveUserNames();
+        
 
 
         if (result == null)
         {
             return Ok(new List<String>());
+        }
+
+        return Ok(result);
+    }
+
+    [HttpGet("/public-profiles")]
+    public async Task<IActionResult> GetAllPublicProfiles()
+    {
+
+        var result = await chatService.GetAllPublicProfiles();
+
+
+        if (result == null)
+        {
+            return Ok(new List<AccountDataUserNamesResponse>());
+        }
+
+        return Ok(result);
+    }
+
+    [HttpGet("/public-profiles/{userName}")]
+    public async Task<IActionResult> GetPublicProfile()
+    {
+
+        var result = await chatService.GetAllPublicProfiles();
+
+
+        if (result == null)
+        {
+            return Ok(new List<AccountDataUserNamesResponse>());
         }
 
         return Ok(result);

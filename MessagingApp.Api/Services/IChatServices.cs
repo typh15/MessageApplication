@@ -15,6 +15,7 @@ public interface IChatServices
     Task<bool> CheckIfUserCanRequest(RequestJoinBoardRequest request);
     Task<bool> AddUserToRequests(string uniqueBoardId, string uniqueId, string userAddress, bool allowed);
     Task<bool> ApproveUserJoinRequest(int boardId, string MemberUniqueId, string userName);
+    Task<bool> DenyUserJoinRequest(int boardId, string MemberUniqueId, string userName);
     Task<List<String>> GetPublicBoardNames();
     Task<bool> IsUserActiveAsync(string uniqueId);
     Task<List<JoinBoardRequestDisplay>?> GetBoardJoinRequestsAsync(int boardId, string memberUniqueId);
@@ -23,6 +24,6 @@ public interface IChatServices
     Task<bool> AcceptBoardInvite(int boardId, string uniqueId);
     Task<bool> RejectBoardInvite(int boardId, string uniqueId);
     Task<bool> JoinBoardByCodeAsync(string uniqueBoardId, string uniqueId, string password, string userAddress);
-
-
+    Task<List<AccountDataUserNamesResponse>> GetAllPublicProfiles();
+    Task<AccountDataUserNamesResponse> GetPublicProfile(string userName);
 }

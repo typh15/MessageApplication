@@ -5,14 +5,18 @@ public class ChatServices : IChatServices
     private readonly IMessageBoardRepository messageBoardRepository;
     private readonly IActiveUserRepository activeUserRepository;
     private readonly IImageServices imageServices;
+    private readonly IUserAccountRepository userAccountRepository;
+
 
     public ChatServices(IMessageBoardRepository messageBoardRepository, 
                         IActiveUserRepository activeUserRepository,
-                        IImageServices imageServices)
+                        IImageServices imageServices,
+                        IUserAccountRepository userAccountRepository)
     {
         this.messageBoardRepository = messageBoardRepository;
         this.activeUserRepository = activeUserRepository;
         this.imageServices = imageServices;
+        this.userAccountRepository = userAccountRepository;
     }
 
     public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
@@ -159,15 +163,27 @@ public class ChatServices : IChatServices
 
     public async Task<SendMessageResponse?> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress)
     {
+        var uniqueId = request.UniqueId ?? "";
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var userAccount = await userAccountRepository.GetUserAccountAsync(uniqueId);
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+        string displayName;
+        
 
-
+        if (!(userAccount==null))
+        {
+            displayName = userAccount.DisplayName ?? "";
+        }
+        else
+        {
+            displayName = "";
+        }
+            
         if (board == null)
         {
             return null;
         }
 
-        string uniqueId = request.UniqueId ?? "";
 
         if (string.IsNullOrWhiteSpace(uniqueId))
         {
@@ -181,8 +197,6 @@ public class ChatServices : IChatServices
             return null;
         }
 
-        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
-        var activeUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
 
         if (activeUser == null)
         {
@@ -231,6 +245,7 @@ public class ChatServices : IChatServices
         var chatMessage = new ChatMessage(
             messageId,
             activeUser.UserName,
+            displayName,
             boardId,
             request.LocalTimestamp,
             DateTime.UtcNow,
@@ -535,6 +550,66 @@ public class ChatServices : IChatServices
         return removedUser && addedUser;
     }
 
+    public async Task<bool> DenyUserJoinRequest(int boardId, string MemberUniqueId, string userName)
+    {
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+
+        if (board == null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(MemberUniqueId))
+        {
+            return false;
+        }
+
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+
+        var reqestingUser = activeUsers.FirstOrDefault(u => u.UserName == userName);
+
+        if (!board.UserRequests.Contains(reqestingUser))
+        {
+            return false;
+        }
+
+        bool isUserActive = await activeUserRepository.IsUserActiveAsync(MemberUniqueId);
+
+        if (!isUserActive)
+        {
+            return false;
+        }
+
+        var activeMember = activeUsers.FirstOrDefault(u => u.UniqueId == MemberUniqueId);
+        
+        if (activeMember == null)
+        {
+            return false;
+        }
+        
+        if (reqestingUser == null)
+        {
+            return false;
+        }
+        bool MemberIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeMember);
+        bool userIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, reqestingUser);
+        
+        if (userIsAlreadyInBoard)
+        {
+            return false;
+        }
+        if (!MemberIsAlreadyInBoard)
+        {
+            return false;
+        }
+
+        var removedUserFromBoardRequests = await messageBoardRepository.RemoveUserFromRequestAsync(boardId, reqestingUser);
+        var removedBoardFromUserRequests = await messageBoardRepository.RemoveUserFromInviteAsync(boardId, reqestingUser);
+
+
+        return removedUserFromBoardRequests && removedBoardFromUserRequests;
+    }
+
     public async Task<List<String>> GetPublicBoardNames()
     {
         
@@ -780,6 +855,54 @@ public class ChatServices : IChatServices
         }
 
         return await messageBoardRepository.AddUserToBoardAsync(board.BoardId, activeUser);
+    }
+
+    public async Task<List<AccountDataUserNamesResponse>> GetAllPublicProfiles()
+    {
+        var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
+        var publicAccountDataList = new List<AccountDataUserNamesResponse>();
+        foreach (ActiveUser user in activeUsers)
+        {
+            var uniqueId = user.UniqueId;
+            var userName = user.UserName;
+            if (!string.IsNullOrWhiteSpace(uniqueId))
+            {
+                var userAccountData = await userAccountRepository.GetUserAccountAsync(uniqueId);
+                if (!(userAccountData==null))
+                {
+                    publicAccountDataList.Add(new AccountDataUserNamesResponse(
+                        uniqueId,
+                        userName,
+                        userAccountData.DisplayName,
+                        userAccountData.AvatarImageId,
+                        userAccountData.PublicBlurb));
+                }
+            }
+            
+        }
+
+        return publicAccountDataList;
+    }
+
+    public async Task<AccountDataUserNamesResponse> GetPublicProfile(string userName)
+    {
+        var activeUser = await activeUserRepository.GetActiveUserByUserName(userName);
+        if (!(activeUser == null) && !string.IsNullOrWhiteSpace(activeUser.UniqueId))
+        {
+            var uniqueId = activeUser.UniqueId;
+            var userAccountData = await userAccountRepository.GetUserAccountAsync(uniqueId);
+            if (!(userAccountData==null))
+            {
+                return new AccountDataUserNamesResponse(
+                            uniqueId,
+                            userName,
+                            userAccountData.DisplayName,
+                            userAccountData.AvatarImageId,
+                            userAccountData.PublicBlurb);
+            }
+                
+        }
+        return null;
     }
     
 }

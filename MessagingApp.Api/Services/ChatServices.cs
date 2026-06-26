@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Identity;
-
 public class ChatServices : IChatServices
 {
     private readonly IMessageBoardRepository messageBoardRepository;

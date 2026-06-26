@@ -1,24 +1,10 @@
-
-using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
-
+using Microsoft.AspNetCore.Identity;
 
 class MessageBoardRepository : IMessageBoardRepository
 {
     private readonly List<MessageBoard> messageBoards = new List<MessageBoard>();
     private readonly List<MessageBoardDataResponse> dataResponse = new List<MessageBoardDataResponse>();
-    
-    public string GetStringSha256Hash(string text)
-    {
-        if (String.IsNullOrEmpty(text))
-            return String.Empty;
-
-        using (var sha = System.Security.Cryptography.SHA256.Create())
-        {
-            byte[] textData = System.Text.Encoding.UTF8.GetBytes(text);
-            byte[] hash = sha.ComputeHash(textData);
-            return BitConverter.ToString(hash).Replace("-", String.Empty);
-        }
-    }
+    private readonly PasswordHasher<MessageBoard> passwordHasher = new PasswordHasher<MessageBoard>();
 
     public int GetNextBoardId()
     {
@@ -61,11 +47,12 @@ class MessageBoardRepository : IMessageBoardRepository
             Array.Empty<ChatMessage>(),
             visibleToPublic,
             passwordProtected,
-            GetStringSha256Hash(password),
+            string.Empty,
             Array.Empty<ActiveUser>(),
             Array.Empty<ActiveUser>(),
             newUniqueBoardId
         );
+        newBoard.PasswordHash = passwordHasher.HashPassword(newBoard, password);
         var newDataResponse = new MessageBoardDataResponse(
             newBoardId,
             boardName,
@@ -295,7 +282,13 @@ class MessageBoardRepository : IMessageBoardRepository
         var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
         if (messageBoard != null)
         {
-            return Task.FromResult(messageBoard.Password == GetStringSha256Hash(password));
+            var passwordResult = passwordHasher.VerifyHashedPassword(
+                messageBoard,
+                messageBoard.PasswordHash,
+                password
+            );
+
+            return Task.FromResult(passwordResult != PasswordVerificationResult.Failed);
         }
         return Task.FromResult(false);
     }

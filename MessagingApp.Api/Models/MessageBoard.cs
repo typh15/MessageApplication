@@ -6,14 +6,14 @@ public class MessageBoard
     public ChatMessage[] ChatMessages { get; set; }
     public bool VisibleToPublic { get; set; }
     public bool PasswordProtected { get; set; }
-    public string Password { get; set; }
+    public string PasswordHash { get; set; }
     public int MostRecentMessageHash { get; set; }
     public ActiveUser[] UserRequests {get; set;}
     public string? UniqueBoardId { get; set; }
     public ActiveUser[] UserInvites { get; set; }
 
 
-    public MessageBoard(int boardId, string boardName, ActiveUser[] activeUsers,  ChatMessage[] chatMessages, bool visibleToPublic, bool passwordProtected, string password, ActiveUser[] userRequests, ActiveUser[] userInvites, string? uniqueBoardId = "")
+    public MessageBoard(int boardId, string boardName, ActiveUser[] activeUsers,  ChatMessage[] chatMessages, bool visibleToPublic, bool passwordProtected, string passwordHash, ActiveUser[] userRequests, ActiveUser[] userInvites, string? uniqueBoardId = "")
     {
         BoardId = boardId;
         BoardName = boardName;
@@ -21,7 +21,7 @@ public class MessageBoard
         ChatMessages = chatMessages;
         VisibleToPublic = visibleToPublic;
         PasswordProtected = passwordProtected;
-        Password = password;
+        PasswordHash = passwordHash;
         MostRecentMessageHash = 0;
         UserRequests = userRequests;
         UniqueBoardId = uniqueBoardId;

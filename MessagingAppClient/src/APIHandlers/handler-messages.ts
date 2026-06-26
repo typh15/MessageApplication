@@ -1,6 +1,6 @@
 import Message_Class from '@/components/Models/message-class';
 
-import { serverUrl } from './Helpers/config';
+import { apiUrl } from './Helpers/config';
 import { createMessageFromServerMessage } from './Helpers/message-data-transform';
 import { getStoredUniqueId, getStoredUserName, storeUniqueId } from '@/session/session-storage';
 import type { MessageType, SendMessageOptions } from './Helpers/types';
@@ -30,7 +30,8 @@ export async function sendMessage(
         ImageId: messageType === 'image' ? options.imageId : undefined,
     };
 
-    const response = await fetch(`${serverUrl}/message-boards/${boardId}/messages`, {
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/messages`);
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -80,9 +81,8 @@ export async function sendImageMessage(
 
 export async function fetchMessages(boardId: number): Promise<Message_Class[]> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/messages?uniqueId=${encodeURIComponent(uniqueId)}`
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/messages?uniqueId=${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -99,10 +99,8 @@ export async function fetchMessages(boardId: number): Promise<Message_Class[]> {
 
 export async function deleteMessage(boardId: number, messageId: number): Promise<boolean> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/messages/${messageId}?uniqueId=${encodeURIComponent(uniqueId)}`,
-        { method: 'DELETE' }
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/messages/${messageId}?uniqueId=${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress, { method: 'DELETE' });
 
     if (!response.ok) {
         const txt = await response.text();

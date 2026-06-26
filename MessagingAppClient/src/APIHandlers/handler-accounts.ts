@@ -1,11 +1,12 @@
-import { serverUrl } from './Helpers/config';
+import { apiUrl } from './Helpers/config';
 import type { PublicAccountDataResponse } from './Helpers/types';
 
 import { getStoredUniqueId } from '@/session/session-storage';
 
 export async function getUserAccount(): Promise<PublicAccountDataResponse> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(`${serverUrl}/user-accounts/${encodeURIComponent(uniqueId)}`);
+    const apiUrlAddress = await apiUrl(`/user-accounts/${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -33,8 +34,8 @@ async function updateAccountData(
     body: Record<string, string>
 ): Promise<boolean> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/user-accounts/${encodeURIComponent(uniqueId)}/${fieldName}`,
+    const apiUrlAddress = await apiUrl(`/user-accounts/${encodeURIComponent(uniqueId)}/${fieldName}`);
+    const response = await fetch( apiUrlAddress,
         {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },

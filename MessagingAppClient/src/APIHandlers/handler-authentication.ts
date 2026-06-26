@@ -1,13 +1,16 @@
-import { serverUrl } from './Helpers/config';
+import { apiUrl } from './Helpers/config';
 import { getSession, storeUserSession } from '@/session/session-storage';
 import type { ActiveUserResponse, RegisterUserResponse } from './Helpers/types';
 
 export async function registerUser(userName: string): Promise<RegisterUserResponse> {
+    
+    const apiUrlAddress = await apiUrl(`/registration`);
+
     const body = {
         UserName: userName,
     };
-
-    const response = await fetch(`${serverUrl}/registration`, {
+    
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -35,11 +38,14 @@ export async function createActiveUser(userName: string): Promise<ActiveUserResp
 }
 
 export async function createAnonymousActiveUser(userName: string): Promise<ActiveUserResponse> {
+    
+    const apiUrlAddress = await apiUrl(`/anonymous-users`);
+
     const body = {
         UserName: userName,
     };
 
-    const response = await fetch(`${serverUrl}/anonymous-users`, {
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -58,7 +64,10 @@ export async function createAnonymousActiveUser(userName: string): Promise<Activ
 }
 
 export async function GetAllActiveUserNames(): Promise<string[]> {
-    const response = await fetch(`${serverUrl}/active-usernames`);
+
+    const apiUrlAddress = await apiUrl(`/active-usernames`);
+
+    const response = await fetch(apiUrlAddress);
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch active usernames failed:', txt);
@@ -68,9 +77,10 @@ export async function GetAllActiveUserNames(): Promise<string[]> {
 }
 
 export async function validateActiveUser(uniqueId: string): Promise<boolean> {
-    const response = await fetch(
-        `${serverUrl}/active-users/validate?uniqueId=${encodeURIComponent(uniqueId)}`
-    );
+
+    const apiUrlAddress = await apiUrl(`/active-users/validate?uniqueId=${encodeURIComponent(uniqueId)}`);
+
+    const response = await fetch(apiUrlAddress);
 
     if (!response.ok) {
         return false;

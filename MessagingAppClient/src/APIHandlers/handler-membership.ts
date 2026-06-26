@@ -1,13 +1,11 @@
-import { serverUrl } from './Helpers/config';
+import { apiUrl } from './Helpers/config';
 import { getStoredUniqueId } from '@/session/session-storage';
 import type { BoardJoinRequest, MessageBoardInvite } from './Helpers/types';
 
 export async function approveOfRequestedMembership(boardId: number, reqUserName: string) {
     const memberUniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/approvals?memberUniqueId=${encodeURIComponent(memberUniqueId)}&userName=${encodeURIComponent(reqUserName)}`,
-        { method: 'POST' }
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/approvals?memberUniqueId=${encodeURIComponent(memberUniqueId)}&userName=${encodeURIComponent(reqUserName)}`);
+    const response = await fetch(apiUrlAddress, { method: 'POST' });
 
     if (!response.ok) {
         const txt = await response.text();
@@ -20,10 +18,8 @@ export async function approveOfRequestedMembership(boardId: number, reqUserName:
 
 export async function denyRequestedMembership(boardId: number, reqUserName: string) {
     const memberUniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/denials?memberUniqueId=${encodeURIComponent(memberUniqueId)}&userName=${encodeURIComponent(reqUserName)}`,
-        { method: 'POST' }
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/denials?memberUniqueId=${encodeURIComponent(memberUniqueId)}&userName=${encodeURIComponent(reqUserName)}`);
+    const response = await fetch(apiUrlAddress, { method: 'POST' });
 
     if (!response.ok) {
         const txt = await response.text();
@@ -43,7 +39,8 @@ export async function requestBoardMembership(uniqueBoardId: string, password?: s
         Password: password,
     };
 
-    const response = await fetch(`${serverUrl}/message-boards/search`, {
+    const apiUrlAddress = await apiUrl('/message-boards/search');
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -67,7 +64,8 @@ export async function joinBoardByCode(uniqueBoardId: string, password: string): 
         Password: password,
     };
 
-    const response = await fetch(`${serverUrl}/message-boards/join-by-code`, {
+    const apiUrlAddress = await apiUrl('/message-boards/join-by-code');
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -84,10 +82,8 @@ export async function joinBoardByCode(uniqueBoardId: string, password: string): 
 
 export async function inviteUserToBoard(boardId: number, inviteUserName: string): Promise<boolean> {
     const memberUniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/invites?memberUniqueId=${encodeURIComponent(memberUniqueId)}&inviteUserName=${encodeURIComponent(inviteUserName)}`,
-        { method: 'POST' }
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/invites?memberUniqueId=${encodeURIComponent(memberUniqueId)}&inviteUserName=${encodeURIComponent(inviteUserName)}`);
+    const response = await fetch(apiUrlAddress, { method: 'POST' });
 
     if (!response.ok) {
         const txt = await response.text();
@@ -100,7 +96,8 @@ export async function inviteUserToBoard(boardId: number, inviteUserName: string)
 
 export async function getUserBoardInvites(): Promise<MessageBoardInvite[]> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(`${serverUrl}/active-users/${encodeURIComponent(uniqueId)}/invites`);
+    const apiUrlAddress = await apiUrl(`/active-users/${encodeURIComponent(uniqueId)}/invites`);
+    const response = await fetch(apiUrlAddress);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -113,10 +110,8 @@ export async function getUserBoardInvites(): Promise<MessageBoardInvite[]> {
 
 export async function acceptBoardInvite(boardId: number): Promise<boolean> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/invites/accept?uniqueId=${encodeURIComponent(uniqueId)}`,
-        { method: 'POST' }
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/invites/accept?uniqueId=${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress, { method: 'POST' });
 
     if (!response.ok) {
         const txt = await response.text();
@@ -129,10 +124,8 @@ export async function acceptBoardInvite(boardId: number): Promise<boolean> {
 
 export async function rejectBoardInvite(boardId: number): Promise<boolean> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/invites/reject?uniqueId=${encodeURIComponent(uniqueId)}`,
-        { method: 'POST' }
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/invites/reject?uniqueId=${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress, { method: 'POST' });
 
     if (!response.ok) {
         const txt = await response.text();
@@ -147,9 +140,8 @@ export async function getBoardJoinRequests(
     boardId: number
 ): Promise<BoardJoinRequest[]> {
     const memberUniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/message-boards/${boardId}/requests?memberUniqueId=${encodeURIComponent(memberUniqueId)}`
-    );
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/requests?memberUniqueId=${encodeURIComponent(memberUniqueId)}`);
+    const response = await fetch(apiUrlAddress);
 
     if (!response.ok) {
         throw new Error('Failed to fetch join requests');

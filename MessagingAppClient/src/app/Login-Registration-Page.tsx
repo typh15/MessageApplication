@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_SERVER_URL, loadServerUrl, saveServerUrl } from '@/APIHandlers/Helpers/config';
 
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
@@ -18,19 +18,9 @@ export default function RegistrationScreen() {
     const [username, setUsername] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [serverUrl, setServerUrl] = useState('');
+    const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
     const [activeUserNames, setActiveUserNames] = useState<string[]>([]);
     const router = useRouter();
-
-    const loadServerUrl = async () => {
-        try {      const url = await AsyncStorage.getItem('serverUrl');
-        if (url) {
-            setServerUrl(url);
-        }
-        } catch (err) { 
-            console.error('Failed to load server URL:', err);
-        }
-    }
 
     const safeAreaInsets = useSafeAreaInsets();
     const insets = {
@@ -52,19 +42,30 @@ export default function RegistrationScreen() {
         },
     });
 
-    const GetActiveUserNames = async () => {
+    const getActiveUserNames = async () => {
         try {
             const names = await APIHandler.GetAllActiveUserNames();
             setActiveUserNames(names);
+            return names;
         } 
         catch (err) {
             console.error('Failed to fetch active usernames:', err);
+            return []
         }
+
     };
 
     useEffect(() => {
+        loadServerUrl()
+            .then(setServerUrl)
+            .catch((err) => {
+                console.error('Failed to load server URL:', err);
+            });
+    }, []);
+
+    useEffect(() => {
         // For testing: fetch active usernames on load
-        GetActiveUserNames();
+        getActiveUserNames();
     }, []);
 
   
@@ -72,7 +73,7 @@ export default function RegistrationScreen() {
     // Poll for new boards at a fixed interval
     useEffect(() => {
         const intervalId = setInterval(() => {
-            GetActiveUserNames();
+            getActiveUserNames();
         }, 10000);
 
         return () => clearInterval(intervalId);
@@ -84,7 +85,18 @@ export default function RegistrationScreen() {
             setError('Please enter a username');
             return;
         }
-        GetActiveUserNames();
+        const requestedUsername = username.trim();
+
+        const names = await getActiveUserNames();
+
+        const usernameExists = names.some(
+            (name) => name.toLowerCase() === requestedUsername.toLowerCase()
+        );
+
+        if (usernameExists) {
+            setError('Username already exists');
+            return;
+        }
         if (activeUserNames.includes(username)){
             setError('Username already exists');
             return;
@@ -93,11 +105,10 @@ export default function RegistrationScreen() {
         setError('');
 
         try {
+            await saveServerUrl(serverUrl);
             const response = await APIHandler.createActiveUser(username);
             console.log('User registered:', response);
-            
-            await AsyncStorage.setItem('serverUrl', serverUrl);
-            
+
             // Navigate to the boards selection screen
             router.push('../Homescreen-Board-Select-Page');
         } 
@@ -128,6 +139,7 @@ export default function RegistrationScreen() {
             setLoading(true);
             setError('');
             const session = await getSession();
+            await saveServerUrl(serverUrl);
             if (!session) {
                 setError('No saved ID found. Please register first.');
                 return;
@@ -199,7 +211,7 @@ export default function RegistrationScreen() {
                     showText={true}
                     buttonText="Clear Saved ID"
                     onPress={handleClearUniqueId}
-                    disabled={loading || activeUserNames.length === 0}
+                    disabled={loading}
                     style={styles.buttonListStyle}
                     textStyle={styles.buttonText}
                 />

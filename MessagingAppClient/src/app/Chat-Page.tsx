@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -18,11 +18,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 import type { ImageUploadInput } from '@/APIHandlers/ApiHandlerHub';
+import type MessageClass from '@/components/Models/message-class';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { Button } from '@/components/ui/generic-button';
 import { MessageBox } from '@/components/ui/message-box';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { ControlSize, MaxContentWidth, Radius, Spacing, type AppTheme } from '@/constants/theme';
 import { useBoardDetails } from '@/hooks/API/use-board-details';
 import { useBoardJoinRequests } from '@/hooks/API/use-board-join-requests';
 import { useMessages } from '@/hooks/API/use-messages';
@@ -31,8 +32,11 @@ import { useSession } from '@/hooks/use-session';
 import { createImageUploadInput, SUPPORTED_IMAGE_TYPES } from '@/utils/image-upload';
 
 const BOTTOM_THRESHOLD = 48;
+const COMPOSER_CONTROL_SIZE = ControlSize.lg;
+const IS_WEB = Platform.OS === 'web';
 
 export default function ChatScreen() {
+    const styles = useChatStyles();
     const params = useLocalSearchParams();
     const rawBoardId = params.boardId as string | undefined;
     const boardId = rawBoardId ? parseInt(rawBoardId) : NaN;
@@ -50,7 +54,6 @@ export default function ChatScreen() {
     const didInitialScrollRef = useRef(false);
     const previousLastMessageIdRef = useRef<string | null>(null);
 
-    const theme = useTheme();
     const { session } = useSession();
     const {
         data: messagesData,
@@ -63,6 +66,9 @@ export default function ChatScreen() {
     const boardTitle = boardInfo?.boardName ?? `Board ${boardId}`;
     const uniqueBoardId = boardInfo?.uniqueBoardId ?? null;
     const hasJoinRequests = (joinRequests ?? []).length > 0;
+    const canUseBoardActions = !!session && isValidBoardId;
+    const canPickImage = !loading && canUseBoardActions;
+    const canSendMessage = canUseBoardActions && !loading && (text.trim().length > 0 || !!selectedImage);
 
     useEffect(() => {
         if (!isValidBoardId) {
@@ -153,7 +159,7 @@ export default function ChatScreen() {
         }
 
         try {
-            if (Platform.OS !== 'web') {
+            if (!IS_WEB) {
                 const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
                 if (!permission.granted) {
@@ -193,7 +199,7 @@ export default function ChatScreen() {
         }
     };
 
-    const handleNewUserRequest = async () => {
+    const handleNewUserRequest = () => {
         router.push({
             pathname: '../Board-Join-Requests-Page',
             params: { boardId: boardId.toString() },
@@ -232,202 +238,389 @@ export default function ChatScreen() {
         router.push('../Homescreen-Board-Select-Page');
     };
 
-    const format_displayname = (userName:string, displayName?: string) => {
-        if (displayName === "" || displayName == null) {
-            return userName
-        }
-        return displayName + ' (' + userName + ')'
-    }
-
     return (
         <ThemedView style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
-                <ThemedView style={styles.header}>
-                    <Button
-                        showText={true}
-                        buttonText={'\u2190 Back'}
-                        onPress={handleBackToBoards}
-                        style={styles.backButton}
-                        borderWidth={2}
-                        backgroundColor="transparent"
-                        borderColor={theme.genericborder}
-                        borderRadius={8}
-                    />
+                <ChatHeader
+                    boardTitle={boardTitle}
+                    uniqueBoardId={uniqueBoardId}
+                    hasJoinRequests={hasJoinRequests}
+                    onBackPress={handleBackToBoards}
+                    onJoinRequestsPress={handleNewUserRequest}
+                />
 
-                    <ThemedView style={{ flex: 1, alignItems: 'center' }}>
-                        <ThemedText type="title" style={styles.boardTitle}>{boardTitle}</ThemedText>
-                        {uniqueBoardId ? (
-                            <ThemedText style={styles.uniqueBoardIdText}>
-                                ID: {uniqueBoardId}
-                            </ThemedText>
-                        ) : null}
-                    </ThemedView>
+                <BoardInviteBar
+                    inviteUserName={inviteUserName}
+                    invitingUser={invitingUser}
+                    disabled={invitingUser || !canUseBoardActions}
+                    onChangeInviteUserName={setInviteUserName}
+                    onInviteUser={handleInviteUser}
+                />
 
-                    {hasJoinRequests ? (
-                        <Button
-                            showText={true}
-                            buttonText="Join Requests"
-                            onPress={handleNewUserRequest}
-                            style={styles.backButton}
-                            borderWidth={2}
-                            backgroundColor={theme.buttonBackground}
-                            borderColor={theme.genericborder}
-                            borderRadius={8}
-                        />
-                    ) : null}
-                </ThemedView>
-
-                <ThemedView style={styles.boardTools}>
-                    <TextInput
-                        value={inviteUserName}
-                        onChangeText={setInviteUserName}
-                        placeholder="Invite username"
-                        placeholderTextColor="#8E95A8"
-                        style={styles.inviteInput}
-                        autoCapitalize="none"
-                        editable={!invitingUser}
-                    />
-                    <Button
-                        showText={true}
-                        buttonText={invitingUser ? 'Inviting...' : 'Invite'}
-                        onPress={handleInviteUser}
-                        disabled={invitingUser || !session || !isValidBoardId}
-                        style={styles.inviteButton}
-                        textStyle={styles.inviteButtonText}
-                    />
-                </ThemedView>
-
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={styles.messageScroll}
-                    contentContainerStyle={styles.messageList}
+                <MessageList
+                    messages={messages}
+                    currentUserName={session?.userName}
+                    scrollViewRef={scrollViewRef}
                     onScroll={handleMessageScroll}
-                    scrollEventThrottle={80}
-                >
-                    {messages.length === 0 ? (
-                        <ThemedView style={styles.emptyContainer}>
-                            <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
-                        </ThemedView>
-                    ) : (
-                        messages.map((message) => (
-                            <MessageBox
-                                key={message.id}
-                                sender={format_displayname(message.fromusername, message.displayName)}
-                                message={message.content}
-                                timestamp={message.timestamp}
-                                isSentByCurrentUser={message.fromusername === session?.userName}
-                                messageType={message.messageType}
-                                imageId={message.imageId}
-                            />
-                        ))
-                    )}
-                </ScrollView>
+                />
 
-                {showScrollToBottom ? (
-                    <Button
-                        showText={true}
-                        buttonText="New messages"
-                        onPress={() => scrollToBottom(true)}
-                        style={styles.scrollToBottomButton}
-                        backgroundColor={theme.buttonBackground}
-                        borderRadius={999}
-                        textStyle={styles.scrollToBottomButtonText}
-                    />
-                ) : null}
+                <ScrollToBottomButton
+                    visible={showScrollToBottom}
+                    onPress={() => scrollToBottom(true)}
+                />
 
-                <ThemedView style={styles.composerShell}>
-                    {selectedImage ? (
-                        <ThemedView style={styles.selectedImagePreviewRow}>
-                            <Image
-                                source={{ uri: selectedImage.uri }}
-                                style={styles.selectedImageThumbnail}
-                                contentFit="cover"
-                            />
-
-                            <ThemedView style={styles.selectedImageCopy}>
-                                <ThemedText style={styles.selectedImageTitle} numberOfLines={1}>
-                                    Picture ready
-                                </ThemedText>
-                                <ThemedText style={styles.selectedImageName} numberOfLines={1}>
-                                    {selectedImage.name ?? 'Selected photo'}
-                                </ThemedText>
-                            </ThemedView>
-
-                            <Pressable
-                                onPress={() => setSelectedImage(null)}
-                                disabled={loading}
-                                accessibilityRole="button"
-                                accessibilityLabel="Remove selected picture"
-                                style={({ pressed }) => [
-                                    styles.removeImageButton,
-                                    pressed && styles.iconButtonPressed,
-                                    loading && styles.iconButtonDisabled,
-                                ]}
-                            >
-                                <SymbolView
-                                    name={{ ios: 'xmark', android: 'close', web: 'close' }}
-                                    size={18}
-                                    weight="bold"
-                                    tintColor="#ffffff"
-                                />
-                            </Pressable>
-                        </ThemedView>
-                    ) : null}
-
-                    <ThemedView style={styles.composer}>
-                        <Pressable
-                            onPress={handlePickImage}
-                            disabled={loading || !session || !isValidBoardId}
-                            accessibilityRole="button"
-                            accessibilityLabel="Choose a picture"
-                            style={({ pressed }) => [
-                                styles.photoButton,
-                                pressed && styles.iconButtonPressed,
-                                (loading || !session || !isValidBoardId) && styles.iconButtonDisabled,
-                            ]}
-                        >
-                            {loading && selectedImage ? (
-                                <ActivityIndicator color="#ffffff" />
-                            ) : (
-                                <SymbolView
-                                    name={{ ios: 'photo', android: 'add_photo_alternate', web: 'add_photo_alternate' }}
-                                    size={24}
-                                    weight="bold"
-                                    tintColor="#ffffff"
-                                />
-                            )}
-                        </Pressable>
-
-                        <TextInput
-                            style={styles.messageInput}
-                            value={text}
-                            onChangeText={setText}
-                            placeholder={selectedImage ? 'Add a caption...' : 'Type a message...'}
-                            placeholderTextColor="#8E95A8"
-                            multiline
-                            editable={!loading}
-                        />
-
-                        <Button
-                            showText={false}
-                            showImage={true}
-                            imageSource={require("../../assets/images/SendButton.png")}
-                            onPress={handleSendMessage}
-                            disabled={loading || !session || !isValidBoardId || (text.trim().length === 0 && !selectedImage)}
-                            width={48}
-                            height={48}
-                            borderRadius={8}
-                            imageWidth={24}
-                            imageHeight={24}
-                        />
-                    </ThemedView>
-                </ThemedView>
+                <MessageComposer
+                    text={text}
+                    selectedImage={selectedImage}
+                    loading={loading}
+                    canPickImage={canPickImage}
+                    canSendMessage={canSendMessage}
+                    onChangeText={setText}
+                    onPickImage={handlePickImage}
+                    onSendMessage={handleSendMessage}
+                    onRemoveImage={() => setSelectedImage(null)}
+                />
             </SafeAreaView>
         </ThemedView>
     );
 }
 
-const styles = StyleSheet.create({
+type ChatHeaderProps = {
+    boardTitle: string;
+    uniqueBoardId: string | null;
+    hasJoinRequests: boolean;
+    onBackPress: () => void;
+    onJoinRequestsPress: () => void;
+};
+
+function ChatHeader({
+    boardTitle,
+    uniqueBoardId,
+    hasJoinRequests,
+    onBackPress,
+    onJoinRequestsPress,
+}: ChatHeaderProps) {
+    const theme = useTheme();
+    const styles = useChatStyles();
+
+    return (
+        <ThemedView style={[styles.header, !IS_WEB && styles.headerMobile]}>
+            <Button
+                showText
+                buttonText={'\u2190 Back'}
+                onPress={onBackPress}
+                style={[styles.backButton, !IS_WEB && styles.backButtonMobile]}
+                borderWidth={2}
+                backgroundColor="transparent"
+                borderColor={theme.borderAccent}
+                borderRadius={Radius.sm}
+            />
+
+            <ThemedView style={[styles.headerTitleBlock, !IS_WEB && styles.headerTitleBlockMobile]}>
+                <ThemedText
+                    type="title"
+                    style={[styles.boardTitle, !IS_WEB && styles.boardTitleMobile]}
+                >
+                    {boardTitle}
+                </ThemedText>
+
+                {uniqueBoardId ? (
+                    <ThemedText style={styles.uniqueBoardIdText}>
+                        ID: {uniqueBoardId}
+                    </ThemedText>
+                ) : null}
+            </ThemedView>
+
+            {hasJoinRequests ? (
+                <Button
+                    showText
+                    buttonText="Join Requests"
+                    onPress={onJoinRequestsPress}
+                    style={[styles.backButton, !IS_WEB && styles.backButtonMobile]}
+                    borderWidth={2}
+                    backgroundColor={theme.buttonBackground}
+                    borderColor={theme.borderAccent}
+                    borderRadius={Radius.sm}
+                />
+            ) : null}
+        </ThemedView>
+    );
+}
+
+type BoardInviteBarProps = {
+    inviteUserName: string;
+    invitingUser: boolean;
+    disabled: boolean;
+    onChangeInviteUserName: (value: string) => void;
+    onInviteUser: () => void;
+};
+
+function BoardInviteBar({
+    inviteUserName,
+    invitingUser,
+    disabled,
+    onChangeInviteUserName,
+    onInviteUser,
+}: BoardInviteBarProps) {
+    const theme = useTheme();
+    const styles = useChatStyles();
+
+    return (
+        <ThemedView style={[styles.boardTools, !IS_WEB && styles.boardToolsMobile]}>
+            <TextInput
+                value={inviteUserName}
+                onChangeText={onChangeInviteUserName}
+                placeholder="Invite username"
+                placeholderTextColor={theme.inputPlaceholder}
+                style={styles.inviteInput}
+                autoCapitalize="none"
+                editable={!invitingUser}
+            />
+
+            <Button
+                showText
+                buttonText={invitingUser ? 'Inviting...' : 'Invite'}
+                onPress={onInviteUser}
+                disabled={disabled}
+                backgroundColor={theme.actionPrimary}
+                style={styles.inviteButton}
+                textStyle={styles.inviteButtonText}
+            />
+        </ThemedView>
+    );
+}
+
+type MessageListProps = {
+    messages: MessageClass[];
+    currentUserName?: string;
+    scrollViewRef: RefObject<ScrollView | null>;
+    onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+};
+
+function MessageList({
+    messages,
+    currentUserName,
+    scrollViewRef,
+    onScroll,
+}: MessageListProps) {
+    const styles = useChatStyles();
+
+    return (
+        <ScrollView
+            ref={scrollViewRef}
+            style={styles.messageScroll}
+            contentContainerStyle={styles.messageList}
+            onScroll={onScroll}
+            scrollEventThrottle={80}
+        >
+            {messages.length === 0 ? (
+                <ThemedView style={styles.emptyContainer}>
+                    <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
+                </ThemedView>
+            ) : (
+                messages.map((message) => (
+                    <MessageBox
+                        key={message.id}
+                        sender={formatDisplayName(message.fromusername, message.displayName)}
+                        message={message.content}
+                        timestamp={message.timestamp}
+                        isSentByCurrentUser={message.fromusername === currentUserName}
+                        messageType={message.messageType}
+                        imageId={message.imageId}
+                    />
+                ))
+            )}
+        </ScrollView>
+    );
+}
+
+type ScrollToBottomButtonProps = {
+    visible: boolean;
+    onPress: () => void;
+};
+
+function ScrollToBottomButton({ visible, onPress }: ScrollToBottomButtonProps) {
+    const theme = useTheme();
+    const styles = useChatStyles();
+
+    if (!visible) {
+        return null;
+    }
+
+    return (
+        <Button
+            showText
+            buttonText="New messages"
+            onPress={onPress}
+            style={styles.scrollToBottomButton}
+            backgroundColor={theme.buttonBackground}
+            borderRadius={Radius.round}
+            textStyle={styles.scrollToBottomButtonText}
+        />
+    );
+}
+
+type MessageComposerProps = {
+    text: string;
+    selectedImage: ImageUploadInput | null;
+    loading: boolean;
+    canPickImage: boolean;
+    canSendMessage: boolean;
+    onChangeText: (value: string) => void;
+    onPickImage: () => void;
+    onSendMessage: () => void;
+    onRemoveImage: () => void;
+};
+
+function MessageComposer({
+    text,
+    selectedImage,
+    loading,
+    canPickImage,
+    canSendMessage,
+    onChangeText,
+    onPickImage,
+    onSendMessage,
+    onRemoveImage,
+}: MessageComposerProps) {
+    const theme = useTheme();
+    const styles = useChatStyles();
+
+    return (
+        <ThemedView style={styles.composerShell}>
+            {selectedImage ? (
+                <SelectedImagePreview
+                    image={selectedImage}
+                    loading={loading}
+                    onRemoveImage={onRemoveImage}
+                />
+            ) : null}
+
+            <ThemedView style={styles.composer}>
+                <Pressable
+                    onPress={onPickImage}
+                    disabled={!canPickImage}
+                    accessibilityRole="button"
+                    accessibilityLabel="Choose a picture"
+                    style={({ pressed }) => [
+                        styles.photoButton,
+                        pressed && styles.iconButtonPressed,
+                        !canPickImage && styles.iconButtonDisabled,
+                    ]}
+                >
+                    {loading && selectedImage ? (
+                        <ActivityIndicator color={theme.textOnAccent} />
+                    ) : (
+                        <SymbolView
+                            name={{ ios: 'photo', android: 'add_photo_alternate', web: 'add_photo_alternate' }}
+                            size={24}
+                            weight="bold"
+                            tintColor={theme.textOnAccent}
+                        />
+                    )}
+                </Pressable>
+
+                <TextInput
+                    style={[styles.messageInput, IS_WEB && styles.messageInputWeb]}
+                    value={text}
+                    onChangeText={onChangeText}
+                    placeholder={selectedImage ? 'Add a caption...' : 'Type a message...'}
+                    placeholderTextColor={theme.inputPlaceholder}
+                    multiline
+                    editable={!loading}
+                />
+
+                <Button
+                    showText={false}
+                    showImage
+                    imageSource={require("../../assets/images/SendButton.png")}
+                    onPress={onSendMessage}
+                    disabled={!canSendMessage}
+                    width={COMPOSER_CONTROL_SIZE}
+                    height={COMPOSER_CONTROL_SIZE}
+                    borderRadius={Radius.sm}
+                    imageWidth={24}
+                    imageHeight={24}
+                />
+            </ThemedView>
+        </ThemedView>
+    );
+}
+
+type SelectedImagePreviewProps = {
+    image: ImageUploadInput;
+    loading: boolean;
+    onRemoveImage: () => void;
+};
+
+function SelectedImagePreview({
+    image,
+    loading,
+    onRemoveImage,
+}: SelectedImagePreviewProps) {
+    const theme = useTheme();
+    const styles = useChatStyles();
+
+    return (
+        <ThemedView style={styles.selectedImagePreviewRow}>
+            <Image
+                source={{ uri: image.uri }}
+                style={styles.selectedImageThumbnail}
+                contentFit="cover"
+            />
+
+            <ThemedView style={styles.selectedImageCopy}>
+                <ThemedText style={styles.selectedImageTitle} numberOfLines={1}>
+                    Picture ready
+                </ThemedText>
+                <ThemedText style={styles.selectedImageName} numberOfLines={1}>
+                    {image.name ?? 'Selected photo'}
+                </ThemedText>
+            </ThemedView>
+
+            <Pressable
+                onPress={onRemoveImage}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel="Remove selected picture"
+                style={({ pressed }) => [
+                    styles.removeImageButton,
+                    pressed && styles.iconButtonPressed,
+                    loading && styles.iconButtonDisabled,
+                ]}
+            >
+                <SymbolView
+                    name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                    size={18}
+                    weight="bold"
+                    tintColor={theme.textOnAccent}
+                />
+            </Pressable>
+        </ThemedView>
+    );
+}
+
+function formatDisplayName(userName: string, displayName?: string) {
+    if (!displayName) {
+        return userName;
+    }
+
+    return `${displayName} (${userName})`;
+}
+
+function useChatStyles() {
+    const theme = useTheme();
+
+    return useMemo(() => createChatStyles(theme), [theme]);
+}
+
+function createChatStyles(theme: AppTheme) {
+    return StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: theme.background,
+    },
+
     safeArea: {
         flex: 1,
         paddingHorizontal: Spacing.four,
@@ -441,11 +634,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.three,
-        paddingVertical: 0,
+        paddingTop: Spacing.one,
+        paddingBottom: Spacing.two,
         borderBottomWidth: 1,
-        borderBottomColor: '#40404080',
-        marginBottom: -Spacing.two,
+        borderBottomColor: theme.borderSubtle,
+        marginBottom: 0,
         marginTop: Spacing.two,
+    },
+
+    headerMobile: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.two,
+        paddingBottom: Spacing.one,
+        marginBottom: 0,
     },
 
     backButton: {
@@ -453,16 +655,41 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.one,
     },
 
-    boardTitle: {
+    backButtonMobile: {
+        alignSelf: 'center',
+    },
+
+    headerTitleBlock: {
         flex: 1,
+        alignItems: 'center',
+        minWidth: 0,
+    },
+
+    headerTitleBlockMobile: {
+        flex: 1,
+        paddingHorizontal: 0,
+    },
+
+    boardTitle: {
+        flex: 0,
         fontSize: 24,
+        lineHeight: 30,
         fontWeight: '600',
+        textAlign: 'center',
+    },
+
+    boardTitleMobile: {
+        flex: 0,
+        fontSize: 20,
+        lineHeight: 26,
+        textAlign: 'center',
     },
 
     uniqueBoardIdText: {
         fontSize: 12,
+        lineHeight: 16,
         opacity: 0.7,
-        marginTop: Spacing.one,
+        marginTop: Spacing.half,
     },
 
     boardTools: {
@@ -473,28 +700,31 @@ const styles = StyleSheet.create({
         paddingBottom: Spacing.one,
     },
 
+    boardToolsMobile: {
+        paddingTop: Spacing.two,
+    },
+
     inviteInput: {
         flex: 1,
         minHeight: 42,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         borderWidth: 1,
-        borderColor: '#4DACFF80',
-        backgroundColor: '#151923',
-        color: '#ffffff',
+        borderColor: theme.borderAccent,
+        backgroundColor: theme.surfacePreview,
+        color: theme.text,
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
     },
 
     inviteButton: {
-        backgroundColor: '#007AFF',
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
         minHeight: 42,
     },
 
     inviteButtonText: {
-        color: '#ffffff',
+        color: theme.textOnAccent,
         fontSize: 14,
         fontWeight: '700',
     },
@@ -529,7 +759,7 @@ const styles = StyleSheet.create({
 
     composer: {
         flexDirection: "row",
-        alignItems: "flex-end",
+        alignItems: "center",
         gap: Spacing.two,
     },
 
@@ -539,16 +769,16 @@ const styles = StyleSheet.create({
         gap: Spacing.two,
         padding: Spacing.two,
         borderWidth: 1,
-        borderColor: "#4DACFF80",
-        borderRadius: 16,
-        backgroundColor: "#151923",
+        borderColor: theme.borderAccent,
+        borderRadius: Radius.sm,
+        backgroundColor: theme.surfacePreview,
     },
 
     selectedImageThumbnail: {
         width: 56,
         height: 56,
-        borderRadius: 12,
-        backgroundColor: "#0B0D14",
+        borderRadius: Radius.sm,
+        backgroundColor: theme.surfaceImage,
     },
 
     selectedImageCopy: {
@@ -559,33 +789,33 @@ const styles = StyleSheet.create({
     selectedImageTitle: {
         fontSize: 15,
         fontWeight: "700",
-        color: "#ffffff",
+        color: theme.text,
     },
 
     selectedImageName: {
         marginTop: Spacing.half,
         fontSize: 12,
-        color: "#B0B4BA",
+        color: theme.textSecondary,
     },
 
     photoButton: {
-        width: 48,
-        height: 48,
-        borderRadius: 8,
+        width: COMPOSER_CONTROL_SIZE,
+        height: COMPOSER_CONTROL_SIZE,
+        borderRadius: Radius.sm,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#262f4b",
+        backgroundColor: theme.surfaceInput,
         borderWidth: 1,
-        borderColor: "#4DACFF80",
+        borderColor: theme.borderAccent,
     },
 
     removeImageButton: {
         width: 36,
         height: 36,
-        borderRadius: 18,
+        borderRadius: Radius.sm,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#303342",
+        backgroundColor: theme.actionDisabled,
     },
 
     iconButtonPressed: {
@@ -603,7 +833,7 @@ const styles = StyleSheet.create({
         bottom: 74,
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
-        shadowColor: '#000000',
+        shadowColor: theme.shadow,
         shadowOpacity: 0.24,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
@@ -611,26 +841,27 @@ const styles = StyleSheet.create({
     },
 
     scrollToBottomButtonText: {
-        color: '#ffffff',
+        color: theme.textOnAccent,
         fontSize: 13,
         fontWeight: '700',
     },
 
-    container: {
-        flex: 1,
-        backgroundColor: "#000000",
-    },
-
     messageInput: {
         flex: 1,
-        minHeight: 48,
-        maxHeight: 120,
+        height: COMPOSER_CONTROL_SIZE,
+        minHeight: COMPOSER_CONTROL_SIZE,
+        maxHeight: COMPOSER_CONTROL_SIZE,
         fontSize: 17,
-        backgroundColor: "#262f4b",
-        color: "#ffffff",
+        backgroundColor: theme.surfaceInput,
+        color: theme.text,
         paddingHorizontal: Spacing.three,
-        paddingVertical: Spacing.two,
-        borderRadius: 24,
+        paddingVertical: 0,
+        borderRadius: Radius.sm,
         textAlignVertical: "center",
     },
-});
+
+    messageInputWeb: {
+        lineHeight: COMPOSER_CONTROL_SIZE,
+    },
+    });
+}

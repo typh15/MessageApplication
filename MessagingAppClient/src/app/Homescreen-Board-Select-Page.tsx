@@ -19,8 +19,6 @@ export default function BoardSelectionScreen() {
     const [joinBoardId, setJoinBoardId] = useState('');
     const [joinPassword, setJoinPassword] = useState('');
     const [joiningByCode, setJoiningByCode] = useState(false);
-    const [requestBoardId, setRequestBoardId] = useState('');
-    const [requestingJoin, setRequestingJoin] = useState(false);
     const [actionError, setActionError] = useState('');
     const router = useRouter();
 
@@ -100,33 +98,6 @@ export default function BoardSelectionScreen() {
         }
     };
 
-    const handleRequestBoardByUniqueId = async () => {
-        const uniqueBoardId = requestBoardId.trim();
-
-        if (!uniqueBoardId) {
-            Alert.alert('Enter board ID', 'Please enter the unique board ID to request access.');
-            return;
-        }
-
-        try {
-            setRequestingJoin(true);
-            setActionError('');
-            await APIHandler.requestBoardMembership(uniqueBoardId);
-            Alert.alert('Request sent', 'Your request to join the board has been submitted.');
-            setRequestBoardId('');
-            await refreshBoards();
-        }
-        catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to request board access';
-            setActionError(errorMessage);
-            console.error('Request board join error:', err);
-            Alert.alert('Error', errorMessage);
-        }
-        finally {
-            setRequestingJoin(false);
-        }
-    };
-
     const handleJoinBoard = async (boardId: number) => {
         try {
             setJoining(true);
@@ -163,10 +134,6 @@ export default function BoardSelectionScreen() {
                     ) : (
                         <ThemedText style={styles.badgeText}>Private</ThemedText>
                     )}
-
-                    {board.passwordProtected ? (
-                        <ThemedText style={styles.badgeText}>Protected</ThemedText>
-                    ) : null}
                 </ThemedView>
             </ThemedView>
 
@@ -215,7 +182,7 @@ export default function BoardSelectionScreen() {
 
                     <ThemedView style={styles.privateAccessGrid}>
                         <ThemedView style={[styles.accessSection, { borderColor: theme.genericborder }]}>
-                            <ThemedText style={styles.requestLabel}>Join a protected private board</ThemedText>
+                            <ThemedText style={styles.requestLabel}>Join a private board</ThemedText>
                             <TextInput
                                 value={joinBoardId}
                                 onChangeText={setJoinBoardId}
@@ -248,29 +215,6 @@ export default function BoardSelectionScreen() {
                             </ThemedText>
                         </ThemedView>
 
-                        <ThemedView style={[styles.accessSection, { borderColor: theme.genericborder }]}>
-                            <ThemedText style={styles.requestLabel}>Request access to a private board</ThemedText>
-                            <TextInput
-                                value={requestBoardId}
-                                onChangeText={setRequestBoardId}
-                                placeholder="Unique board ID"
-                                placeholderTextColor="#8E95A8"
-                                style={styles.searchInput}
-                                autoCapitalize="none"
-                                editable={!requestingJoin}
-                            />
-                            <Button
-                                showText={true}
-                                buttonText={requestingJoin ? 'Requesting...' : 'Request Access'}
-                                onPress={handleRequestBoardByUniqueId}
-                                disabled={requestingJoin}
-                                style={styles.requestButton}
-                                textStyle={styles.requestButtonText}
-                            />
-                            <ThemedText style={styles.requestHint}>
-                                The board owner can approve this from the board chat.
-                            </ThemedText>
-                        </ThemedView>
                     </ThemedView>
                 </ThemedView>
 

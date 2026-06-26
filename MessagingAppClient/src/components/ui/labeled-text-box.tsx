@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { ThemedText } from "../GenericComponents/themed-text";
 import { ThemedView } from "../GenericComponents/themed-view";
-import { Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 type LabeledTextBoxProps = {
@@ -40,10 +40,10 @@ export function LabeledTextBox({
 
     placeholder = "",
     borderThickness = 0,
-    backgroundColor = "#000000",
-    textColor = "#ffffff",
-    labelColor = "#ffffff",
-    borderColor = "#4dacff80",
+    backgroundColor,
+    textColor,
+    labelColor,
+    borderColor,
     editable = true,
     containerStyle,
     labelStyle,
@@ -52,31 +52,35 @@ export function LabeledTextBox({
     
 }: LabeledTextBoxProps) {
 
+    const theme = useTheme();
+    const resolvedBackgroundColor = backgroundColor ?? theme.background;
+    const resolvedTextColor = textColor ?? theme.text;
+    const resolvedLabelColor = labelColor ?? theme.text;
+    const resolvedBorderColor = borderColor ?? theme.borderAccent;
+
     const styles = StyleSheet.create({
         container: {
             gap: Spacing.two,
-            borderColor: borderColor,
-            backgroundColor: backgroundColor,
+            borderColor: resolvedBorderColor,
+            backgroundColor: resolvedBackgroundColor,
             borderWidth: borderThickness,
-            borderRadius: 8,
+            borderRadius: Radius.sm,
             padding: Spacing.two,
         },
         label: {
             fontSize: 16,
             fontWeight: '600',
-            color: labelColor,
+            color: resolvedLabelColor,
         },
         input: {
             borderWidth: 1,
-            borderRadius: 8,
+            borderRadius: Radius.sm,
             padding: Spacing.three,
             fontSize: 16,
             minHeight: 48,
-            color: textColor,
+            color: resolvedTextColor,
         },
     });
-    
-    const theme = useTheme();
 
     return (
         <ThemedView style={[styles.container, containerStyle]}>
@@ -86,7 +90,7 @@ export function LabeledTextBox({
 
             <TextInput
                 style={[styles.input, inputStyle]}
-                placeholderTextColor={theme.text + '80'}
+                placeholderTextColor={theme.inputPlaceholder}
                 placeholder={placeholder}
                 value={value}
                 onChangeText={onChangeText}

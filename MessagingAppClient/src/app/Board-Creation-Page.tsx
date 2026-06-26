@@ -13,8 +13,7 @@ import { LabeledTextBox } from '@/components/ui/labeled-text-box';
 
 export default function NewBoardScreen() {
   const [boardName, setBoardName] = useState('');
-  const [visibleToPublic, setVisibleToPublic] = useState(true);
-  const [passwordProtected, setPasswordProtected] = useState(false);
+  const [isPrivateBoard, setIsPrivateBoard] = useState(false);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -39,14 +38,21 @@ export default function NewBoardScreen() {
       return;
     }
 
-    if (passwordProtected && !password) {
-      Alert.alert('Validation', 'Please enter a password for the protected board');
+    const trimmedPassword = password.trim();
+
+    if (isPrivateBoard && !trimmedPassword) {
+      Alert.alert('Validation', 'Please enter a password for the private board');
       return;
     }
 
     try {
       setLoading(true);
-      await APIHandler.createMessageBoard(boardName.trim(), visibleToPublic, passwordProtected, password ?? '');
+      await APIHandler.createMessageBoard(
+        boardName.trim(),
+        !isPrivateBoard,
+        isPrivateBoard,
+        isPrivateBoard ? trimmedPassword : ''
+      );
       // go back to boards and let it refresh
       router.replace('../Homescreen-Board-Select-Page');
     } catch (err) {
@@ -74,20 +80,25 @@ export default function NewBoardScreen() {
             />
 
         <ThemedView style={styles.row}>
-          <ThemedText style={styles.label}>Visible To Public</ThemedText>
-          <Switch value={visibleToPublic} onValueChange={setVisibleToPublic} />
+          <ThemedText style={styles.label}>Private Board</ThemedText>
+          <Switch
+            value={isPrivateBoard}
+            onValueChange={(value) => {
+              setIsPrivateBoard(value);
+
+              if (!value) {
+                setPassword('');
+              }
+            }}
+            disabled={loading}
+          />
         </ThemedView>
 
-        <ThemedView style={styles.row}>
-          <ThemedText style={styles.label}>Password Protected</ThemedText>
-          <Switch value={passwordProtected} onValueChange={setPasswordProtected} />
-        </ThemedView>
-
-        {passwordProtected && (
+        {isPrivateBoard && (
           <ThemedView>
         
             <LabeledTextBox
-                labelText="Password"
+                labelText="Board Password"
                 placeholder="Enter password"
                 value={password}
                 onChangeText={setPassword}

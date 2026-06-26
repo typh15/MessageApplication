@@ -1,4 +1,4 @@
-import { serverUrl } from './Helpers/config';
+import { apiUrl, apiUrlSync } from './Helpers/config';
 import { getStoredUniqueId } from '@/session/session-storage';
 import type { ImageDataResponse, ImageUploadInput } from './Helpers/types';
 
@@ -10,6 +10,8 @@ export async function uploadImage(
     const formData = new FormData();
     formData.append('ownerUniqueId', ownerUniqueId);
 
+    const apiUrlAddress = await apiUrl('/images');
+
     if (image.file) {
         formData.append('image', image.file, imageName);
     } else {
@@ -18,10 +20,10 @@ export async function uploadImage(
             name: imageName,
             type: image.type ?? 'image/jpeg',
         } as any);
-        return await uploadImageWithXmlHttpRequest(formData);
+        return await uploadImageWithXmlHttpRequest(formData, apiUrlAddress);
     }
 
-    const response = await fetch(`${serverUrl}/images`, {
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         body: formData,
     });
@@ -35,11 +37,11 @@ export async function uploadImage(
     return await response.json();
 }
 
-function uploadImageWithXmlHttpRequest(formData: FormData): Promise<ImageDataResponse> {
+function uploadImageWithXmlHttpRequest(formData: FormData, serverAddress: string): Promise<ImageDataResponse> {
     return new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
 
-        request.open('POST', `${serverUrl}/images`);
+        request.open('POST', serverAddress);
 
         request.onload = () => {
             if (request.status < 200 || request.status >= 300) {
@@ -69,11 +71,13 @@ function uploadImageWithXmlHttpRequest(formData: FormData): Promise<ImageDataRes
 }
 
 export function getImageUrl(imageId: string): string {
-    return `${serverUrl}/images/${encodeURIComponent(imageId)}`;
+    return apiUrlSync(`/images/${encodeURIComponent(imageId)}`);
 }
 
 export async function getImageMetadata(imageId: string): Promise<ImageDataResponse> {
-    const response = await fetch(`${serverUrl}/images/${encodeURIComponent(imageId)}/metadata`);
+    const apiUrlAddress = await apiUrl(`/images/${encodeURIComponent(imageId)}/metadata`);
+
+    const response = await fetch(apiUrlAddress);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -86,7 +90,10 @@ export async function getImageMetadata(imageId: string): Promise<ImageDataRespon
 
 export async function getImagesForOwner(): Promise<ImageDataResponse[]> {
     const ownerUniqueId = await getStoredUniqueId();
-    const response = await fetch(`${serverUrl}/images/owners/${encodeURIComponent(ownerUniqueId)}`);
+
+    const apiUrlAddress = await apiUrl(`/images/owners/${encodeURIComponent(ownerUniqueId)}`);
+
+    const response = await fetch(apiUrlAddress);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -99,10 +106,10 @@ export async function getImagesForOwner(): Promise<ImageDataResponse[]> {
 
 export async function deleteImage(imageId: string): Promise<boolean> {
     const ownerUniqueId = await getStoredUniqueId();
-    const response = await fetch(
-        `${serverUrl}/images/${encodeURIComponent(imageId)}?ownerUniqueId=${encodeURIComponent(ownerUniqueId)}`,
-        { method: 'DELETE' }
-    );
+
+    const apiUrlAddress = await apiUrl(`/images/${encodeURIComponent(imageId)}?ownerUniqueId=${encodeURIComponent(ownerUniqueId)}`);
+
+    const response = await fetch(apiUrlAddress, { method: 'DELETE' });
 
     if (!response.ok) {
         const txt = await response.text();

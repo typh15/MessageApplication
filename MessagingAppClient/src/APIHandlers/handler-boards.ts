@@ -1,10 +1,13 @@
-import { serverUrl } from './Helpers/config';
+import { apiUrl } from './Helpers/config';
 import { getStoredUniqueId } from '@/session/session-storage';
 import type { MessageBoard } from './Helpers/types';
 
 export async function getMessageBoards(): Promise<MessageBoard[]> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(`${serverUrl}/message-boards?uniqueId=${encodeURIComponent(uniqueId)}`, {
+
+    const apiUrlAddress = await apiUrl(`/message-boards?uniqueId=${encodeURIComponent(uniqueId)}`);
+    
+    const response = await fetch(apiUrlAddress, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
     });
@@ -24,6 +27,9 @@ export async function createMessageBoard(
     passwordProtected: boolean,
     password: string
 ) {
+
+    const apiUrlAddress = await apiUrl(`/message-boards`);
+    
     const uniqueId = await getStoredUniqueId();
     const body = {
         UniqueId: uniqueId,
@@ -33,7 +39,7 @@ export async function createMessageBoard(
         Password: password,
     };
 
-    const response = await fetch(`${serverUrl}/message-boards`, {
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -49,6 +55,9 @@ export async function createMessageBoard(
 }
 
 export async function joinMessageBoard(boardId: number, password?: string): Promise<boolean> {
+
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/join`);
+    
     const uniqueId = await getStoredUniqueId();
 
     const body = {
@@ -56,7 +65,7 @@ export async function joinMessageBoard(boardId: number, password?: string): Prom
         Password: password,
     };
 
-    const response = await fetch(`${serverUrl}/message-boards/${boardId}/join`, {
+    const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -73,7 +82,10 @@ export async function joinMessageBoard(boardId: number, password?: string): Prom
 
 export async function getMessageBoardData(boardId: number): Promise<MessageBoard> {
     const uniqueId = await getStoredUniqueId();
-    const response = await fetch(`${serverUrl}/message-boards/${boardId}?uniqueId=${encodeURIComponent(uniqueId)}`);
+
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}?uniqueId=${encodeURIComponent(uniqueId)}`);
+    
+    const response = await fetch(apiUrlAddress);
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch board data failed:', txt);
@@ -83,7 +95,10 @@ export async function getMessageBoardData(boardId: number): Promise<MessageBoard
 }
 
 export async function GetAllPublicMessageBoardNames(): Promise<string[]> {
-    const response = await fetch(`${serverUrl}/public-boardnames`);
+
+    const apiUrlAddress = await apiUrl(`/public-boardnames`);
+    
+    const response = await fetch(apiUrlAddress);
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch public messageboard names failed:', txt);

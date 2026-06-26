@@ -9,7 +9,10 @@ import {
     ViewStyle,
     TextStyle,
     ImageStyle,
+    StyleProp,
 } from "react-native";
+
+import { useTheme } from "@/hooks/use-theme";
 
 type ButtonProps = {
     buttonText?: string;
@@ -35,9 +38,9 @@ type ButtonProps = {
     onPress: () => void;
     invisibleWhenDisabled?: boolean;
 
-    style?: ViewStyle;
-    textStyle?: TextStyle;
-    imageStyle?: ImageStyle;
+    style?: StyleProp<ViewStyle>;
+    textStyle?: StyleProp<TextStyle>;
+    imageStyle?: StyleProp<ImageStyle>;
 };
 
 
@@ -58,9 +61,9 @@ export function Button({
     imageWidth = 24,
     imageHeight = 24,
 
-    backgroundColor = "#4A5CFF",
-    disabledBackgroundColor = "#303342",
-    textColor = "#ffffff",
+    backgroundColor,
+    disabledBackgroundColor,
+    textColor,
     invisibleWhenDisabled = false,
 
     disabled = false,
@@ -70,7 +73,11 @@ export function Button({
     textStyle,
     imageStyle,
 }: ButtonProps) {
+    const theme = useTheme();
     const sizeStyle: ViewStyle = {};
+    const resolvedBackgroundColor = backgroundColor ?? theme.buttonBackground;
+    const resolvedDisabledBackgroundColor = disabledBackgroundColor ?? theme.buttonDisabledBackground;
+    const resolvedTextColor = textColor ?? theme.textOnAccent;
 
     if (width !== undefined) {
         sizeStyle.width = width;
@@ -107,7 +114,7 @@ export function Button({
                 styles.button,
                 sizeStyle,
                 {
-                    backgroundColor: disabled ? disabledBackgroundColor : backgroundColor,
+                    backgroundColor: disabled ? resolvedDisabledBackgroundColor : resolvedBackgroundColor,
                     opacity: disabled ? 0.45 : pressed ? 0.75 : 1,
                     transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
@@ -131,7 +138,7 @@ export function Button({
                 <Text
                     style={[
                         styles.text,
-                        { color: textColor },
+                        { color: resolvedTextColor },
                         textStyle,
                     ]}
                 >

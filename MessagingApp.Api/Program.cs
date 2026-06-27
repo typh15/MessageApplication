@@ -19,6 +19,11 @@ builder.Services.AddSingleton<IAccountServices, AccountServices>();
 builder.Services.AddSingleton<IImageRepository, ImageRepository>();
 builder.Services.AddSingleton<IImageServices, ImageServices>();
 
+builder.Services.AddSingleton<HttpClient>();
+builder.Services.AddSingleton<IPushNotificationRepository, PushNotificationRepository>();
+builder.Services.AddSingleton<IExpoPushNotificationClient, ExpoPushNotificationClient>();
+builder.Services.AddSingleton<IPushNotificationServices, PushNotificationServices>();
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>

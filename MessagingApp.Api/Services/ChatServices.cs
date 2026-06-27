@@ -4,17 +4,20 @@ public class ChatServices : IChatServices
     private readonly IActiveUserRepository activeUserRepository;
     private readonly IImageServices imageServices;
     private readonly IUserAccountRepository userAccountRepository;
+    private readonly IPushNotificationServices pushNotificationServices;
 
 
     public ChatServices(IMessageBoardRepository messageBoardRepository, 
                         IActiveUserRepository activeUserRepository,
                         IImageServices imageServices,
-                        IUserAccountRepository userAccountRepository)
+                        IUserAccountRepository userAccountRepository,
+                        IPushNotificationServices pushNotificationServices)
     {
         this.messageBoardRepository = messageBoardRepository;
         this.activeUserRepository = activeUserRepository;
         this.imageServices = imageServices;
         this.userAccountRepository = userAccountRepository;
+        this.pushNotificationServices = pushNotificationServices;
     }
 
     public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
@@ -299,6 +302,11 @@ public class ChatServices : IChatServices
         {
             return null;
         }
+
+        await pushNotificationServices.SendAsync(CreateMessagePushNotificationRequest(
+            board,
+            chatMessage,
+            uniqueId));
 
         return new SendMessageResponse(uniqueId, chatMessage);
     }
@@ -938,6 +946,58 @@ public class ChatServices : IChatServices
                 
         }
         return null;
+    }
+
+    private static PushNotificationSendRequest CreateMessagePushNotificationRequest(
+        MessageBoard board,
+        ChatMessage chatMessage,
+        string senderUniqueId)
+    {
+        var senderName = string.IsNullOrWhiteSpace(chatMessage.FromDisplayName)
+            ? chatMessage.FromUserName
+            : chatMessage.FromDisplayName;
+
+        var messagePreview = GetMessageNotificationPreview(chatMessage);
+
+        return new PushNotificationSendRequest(
+            board.ActiveUsers.Select(user => user.UniqueId ?? ""),
+            senderUniqueId,
+            $"{senderName} in {board.BoardName}",
+            messagePreview,
+            new Dictionary<string, object?>
+            {
+                ["type"] = "message",
+                ["boardId"] = board.BoardId,
+                ["messageId"] = chatMessage.Id,
+                ["url"] = $"/Chat-Page?boardId={board.BoardId}",
+            });
+    }
+
+    private static string GetMessageNotificationPreview(ChatMessage chatMessage)
+    {
+        if (chatMessage.MessageType == MessageTypeEnum.image)
+        {
+            if (string.IsNullOrWhiteSpace(chatMessage.Content))
+            {
+                return "Sent a picture";
+            }
+
+            return TruncateNotificationText(chatMessage.Content);
+        }
+
+        return TruncateNotificationText(chatMessage.Content);
+    }
+
+    private static string TruncateNotificationText(string value)
+    {
+        const int maxLength = 140;
+
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value.Substring(0, maxLength - 3) + "...";
     }
     
 }

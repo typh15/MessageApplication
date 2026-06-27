@@ -1,5 +1,6 @@
 import { apiUrl } from './Helpers/config';
-import { getSession, storeUserSession } from '@/session/session-storage';
+import { getSession, storeUserSession, type Session } from '@/session/session-storage';
+import { syncPushNotificationRegistration } from '@/plugins/push-notifications';
 import type { ActiveUserResponse, RegisterUserResponse } from './Helpers/types';
 
 export async function registerUser(userName: string, password: string): Promise<RegisterUserResponse> {
@@ -24,7 +25,9 @@ export async function registerUser(userName: string, password: string): Promise<
     }
 
     const data = await response.json();
-    await storeUserSession(data.userName ?? userName, data.uniqueId);
+    const session = createSessionFromAuthResponse(data, userName);
+    await storeUserSession(session.userName, session.uniqueId);
+    queuePushNotificationRegistration(session);
 
     return data;
 }
@@ -72,7 +75,9 @@ export async function loginUser(
     }
 
     const data = await response.json();
-    await storeUserSession(data.userName ?? userName, data.uniqueId);
+    const session = createSessionFromAuthResponse(data, userName);
+    await storeUserSession(session.userName, session.uniqueId);
+    queuePushNotificationRegistration(session);
 
     return data;
 }
@@ -98,7 +103,9 @@ export async function createAnonymousActiveUser(userName: string): Promise<Activ
     }
 
     const data = await response.json();
-    await storeUserSession(data.userName ?? userName, data.uniqueId);
+    const session = createSessionFromAuthResponse(data, userName);
+    await storeUserSession(session.userName, session.uniqueId);
+    queuePushNotificationRegistration(session);
 
     return data;
 }
@@ -137,4 +144,20 @@ export async function validateCurrentSession(): Promise<boolean> {
     }
 
     return await validateActiveUser(session.uniqueId);
+}
+
+function createSessionFromAuthResponse(
+    response: RegisterUserResponse,
+    fallbackUserName: string
+): Session {
+    return {
+        uniqueId: response.uniqueId,
+        userName: response.userName ?? fallbackUserName,
+    };
+}
+
+function queuePushNotificationRegistration(session: Session) {
+    void syncPushNotificationRegistration(session).catch((err) => {
+        console.warn('Failed to register push notifications:', err);
+    });
 }

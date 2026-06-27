@@ -277,6 +277,7 @@ MessagingApp.Api/App_Data/**/*.db
 MessagingApp.Api/App_Data/**/*.db-*
 MessagingApp.Api/App_Data/**/*.sqlite
 MessagingApp.Api/App_Data/**/*.sqlite-*
+MessagingApp.Api/App_Data/images/
 
 # Business Intelligence projects
 *.rdl.data

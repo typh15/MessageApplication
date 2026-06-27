@@ -21,6 +21,14 @@ export interface PublicAccountDataResponse {
     publicBlurb?: string;
 }
 
+export interface PublicProfileResponse {
+    uniqueId: string;
+    userName: string;
+    displayName?: string;
+    avatarImageId?: string;
+    publicBlurb?: string;
+}
+
 export interface RegisterUserResponse {
     userName: string;
     uniqueId: string;

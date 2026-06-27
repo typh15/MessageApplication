@@ -159,6 +159,43 @@ public class ChatServices : IChatServices
         return new CreateActiveUserResponse(userName, uniqueId);
     }
 
+    public async Task<CreateActiveUserResponse?> CreateOrRefreshActiveUserAsync(
+        string userName,
+        string userAddress,
+        string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return null;
+        }
+
+        var activeUserByUniqueId = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+        if (activeUserByUniqueId != null)
+        {
+            activeUserByUniqueId.UserName = userName;
+            activeUserByUniqueId.Address = userAddress;
+            activeUserByUniqueId.LastActiveTime = DateTime.UtcNow;
+            await activeUserRepository.UpdateActiveUserAsync(activeUserByUniqueId);
+            return new CreateActiveUserResponse(userName, uniqueId);
+        }
+
+        var activeUserByUserName = await activeUserRepository.GetActiveUserByUserName(userName);
+        if (activeUserByUserName != null)
+        {
+            if (!string.Equals(activeUserByUserName.UniqueId, uniqueId, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            activeUserByUserName.Address = userAddress;
+            activeUserByUserName.LastActiveTime = DateTime.UtcNow;
+            await activeUserRepository.UpdateActiveUserAsync(activeUserByUserName);
+            return new CreateActiveUserResponse(userName, uniqueId);
+        }
+
+        return await CreateActiveUserAsync(userName, userAddress, uniqueId);
+    }
+
     public async Task<SendMessageResponse?> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress)
     {
         var uniqueId = request.UniqueId ?? "";
@@ -882,7 +919,7 @@ public class ChatServices : IChatServices
         return publicAccountDataList;
     }
 
-    public async Task<AccountDataUserNamesResponse> GetPublicProfile(string userName)
+    public async Task<AccountDataUserNamesResponse?> GetPublicProfile(string userName)
     {
         var activeUser = await activeUserRepository.GetActiveUserByUserName(userName);
         if (!(activeUser == null) && !string.IsNullOrWhiteSpace(activeUser.UniqueId))

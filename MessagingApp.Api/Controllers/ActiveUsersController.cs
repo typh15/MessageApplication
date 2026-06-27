@@ -67,15 +67,15 @@ public class ActiveUsersController : ControllerBase
     }
 
     [HttpGet("/public-profiles/{userName}")]
-    public async Task<IActionResult> GetPublicProfile()
+    public async Task<IActionResult> GetPublicProfile(string userName)
     {
 
-        var result = await chatService.GetAllPublicProfiles();
+        var result = await chatService.GetPublicProfile(userName);
 
 
         if (result == null)
         {
-            return Ok(new List<AccountDataUserNamesResponse>());
+            return NotFound();
         }
 
         return Ok(result);

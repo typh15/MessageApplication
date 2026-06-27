@@ -27,6 +27,8 @@ class ActiveUserRepository : IActiveUserRepository
         if (existingUser != null)
         {
             existingUser.LastActiveTime = activeUser.LastActiveTime;
+            existingUser.Address = activeUser.Address;
+            existingUser.UniqueId = activeUser.UniqueId;
             return Task.FromResult(true);
         }
         return Task.FromResult(false);

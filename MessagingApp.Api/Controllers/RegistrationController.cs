@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class RegistrationController : ControllerBase
 {
+    private const int MinimumPasswordLength = 8;
     private readonly IChatServices chatServices;
     private readonly IAccountServices accountServices;
 
@@ -21,6 +22,11 @@ public class RegistrationController : ControllerBase
         if (request == null || string.IsNullOrWhiteSpace(request.UserName))
         {
             return BadRequest("Username is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < MinimumPasswordLength)
+        {
+            return BadRequest($"Password must be at least {MinimumPasswordLength} characters.");
         }
 
         var userName = request.UserName.Trim();
@@ -43,7 +49,8 @@ public class RegistrationController : ControllerBase
             new CreateUserAccount
             {
                 UniqueId = uniqueId,
-                AuthId = uniqueId,
+                AuthId = userName,
+                Password = request.Password,
                 DisplayName = userName
             }
         );
@@ -62,6 +69,51 @@ public class RegistrationController : ControllerBase
         if (activeUser == null)
         {
             return BadRequest("Unable to create active user.");
+        }
+
+        return Ok(new RegisterUserResponse(
+            activeUser.UserName,
+            activeUser.UniqueId,
+            account
+        ));
+    }
+
+    [HttpPost("/login")]
+    public async Task<IActionResult> LoginUserAsync(
+        [FromBody] LoginUserRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.UserName))
+        {
+            return BadRequest("Username is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest("Password is required.");
+        }
+
+        var userName = request.UserName.Trim();
+        var account = await accountServices.AuthenticateUserAccountAsync(
+            userName,
+            request.Password);
+
+        if (account == null)
+        {
+            return Unauthorized("Invalid username or password.");
+        }
+
+        var userAddress =
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        var activeUser = await chatServices.CreateOrRefreshActiveUserAsync(
+            userName,
+            userAddress,
+            account.UniqueId
+        );
+
+        if (activeUser == null)
+        {
+            return BadRequest("Unable to start user session.");
         }
 
         return Ok(new RegisterUserResponse(

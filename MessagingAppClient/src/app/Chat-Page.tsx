@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Keyboard,
+    KeyboardAvoidingView,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Platform,
@@ -14,7 +16,7 @@ import {
     StyleSheet,
     TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 import type { ImageUploadInput } from '@/APIHandlers/ApiHandlerHub';
@@ -49,6 +51,7 @@ export default function ChatScreen() {
     const [invitingUser, setInvitingUser] = useState(false);
     const [selectedImage, setSelectedImage] = useState<ImageUploadInput | null>(null);
     const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
     const isNearBottomRef = useRef(true);
     const didInitialScrollRef = useRef(false);
@@ -69,12 +72,31 @@ export default function ChatScreen() {
     const canUseBoardActions = !!session && isValidBoardId;
     const canPickImage = !loading && canUseBoardActions;
     const canSendMessage = canUseBoardActions && !loading && (text.trim().length > 0 || !!selectedImage);
+    const safeAreaEdges: Edge[] = isKeyboardVisible
+        ? ['top', 'left', 'right']
+        : ['top', 'left', 'right', 'bottom'];
 
     useEffect(() => {
         if (!isValidBoardId) {
             router.replace('../Homescreen-Board-Select-Page');
         }
     }, [isValidBoardId, router]);
+
+    useEffect(() => {
+        if (IS_WEB) {
+            return;
+        }
+
+        const keyboardShowEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const keyboardHideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+        const showSubscription = Keyboard.addListener(keyboardShowEvent, () => setIsKeyboardVisible(true));
+        const hideSubscription = Keyboard.addListener(keyboardHideEvent, () => setIsKeyboardVisible(false));
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
 
     const scrollToBottom = (animated: boolean = true) => {
         scrollViewRef.current?.scrollToEnd({ animated });
@@ -240,7 +262,7 @@ export default function ChatScreen() {
 
     return (
         <ThemedView style={styles.container}>
-            <SafeAreaView style={styles.safeArea}>
+            <SafeAreaView edges={safeAreaEdges} style={styles.safeArea}>
                 <ChatHeader
                     boardTitle={boardTitle}
                     uniqueBoardId={uniqueBoardId}
@@ -257,29 +279,35 @@ export default function ChatScreen() {
                     onInviteUser={handleInviteUser}
                 />
 
-                <MessageList
-                    messages={messages}
-                    currentUserName={session?.userName}
-                    scrollViewRef={scrollViewRef}
-                    onScroll={handleMessageScroll}
-                />
+                <KeyboardAvoidingView
+                    style={styles.chatBody}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    enabled={!IS_WEB}
+                >
+                    <MessageList
+                        messages={messages}
+                        currentUserName={session?.userName}
+                        scrollViewRef={scrollViewRef}
+                        onScroll={handleMessageScroll}
+                    />
 
-                <ScrollToBottomButton
-                    visible={showScrollToBottom}
-                    onPress={() => scrollToBottom(true)}
-                />
+                    <ScrollToBottomButton
+                        visible={showScrollToBottom}
+                        onPress={() => scrollToBottom(true)}
+                    />
 
-                <MessageComposer
-                    text={text}
-                    selectedImage={selectedImage}
-                    loading={loading}
-                    canPickImage={canPickImage}
-                    canSendMessage={canSendMessage}
-                    onChangeText={setText}
-                    onPickImage={handlePickImage}
-                    onSendMessage={handleSendMessage}
-                    onRemoveImage={() => setSelectedImage(null)}
-                />
+                    <MessageComposer
+                        text={text}
+                        selectedImage={selectedImage}
+                        loading={loading}
+                        canPickImage={canPickImage}
+                        canSendMessage={canSendMessage}
+                        onChangeText={setText}
+                        onPickImage={handlePickImage}
+                        onSendMessage={handleSendMessage}
+                        onRemoveImage={() => setSelectedImage(null)}
+                    />
+                </KeyboardAvoidingView>
             </SafeAreaView>
         </ThemedView>
     );
@@ -624,10 +652,14 @@ function createChatStyles(theme: AppTheme) {
     safeArea: {
         flex: 1,
         paddingHorizontal: Spacing.four,
-        paddingBottom: Spacing.two,
+        paddingBottom: 0,
         maxWidth: MaxContentWidth,
         alignSelf: "center",
         width: "100%",
+    },
+
+    chatBody: {
+        flex: 1,
     },
 
     header: {
@@ -754,7 +786,6 @@ function createChatStyles(theme: AppTheme) {
     composerShell: {
         gap: Spacing.two,
         paddingTop: Spacing.two,
-        paddingBottom: Spacing.one,
     },
 
     composer: {

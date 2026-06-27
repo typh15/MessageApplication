@@ -7,14 +7,15 @@ class UserAccountRepository : IUserAccountRepository
     {
         if (userAccount == null ||
             string.IsNullOrWhiteSpace(userAccount.UniqueId) ||
-            string.IsNullOrWhiteSpace(userAccount.AuthId))
+            string.IsNullOrWhiteSpace(userAccount.AuthId) ||
+            string.IsNullOrWhiteSpace(userAccount.PasswordHash))
         {
             return Task.FromResult(false);
         }
 
         var existingAccount = userAccounts.Find(u =>
             u.UniqueId == userAccount.UniqueId ||
-            u.AuthId == userAccount.AuthId);
+            string.Equals(u.AuthId, userAccount.AuthId, StringComparison.OrdinalIgnoreCase));
 
         if (existingAccount == null)
         {
@@ -27,6 +28,13 @@ class UserAccountRepository : IUserAccountRepository
     public Task<UserAccount?> GetUserAccountAsync(string uniqueId)
     {
         var userAccount = userAccounts.Find(u => u.UniqueId == uniqueId);
+        return Task.FromResult(userAccount);
+    }
+
+    public Task<UserAccount?> GetUserAccountByAuthIdAsync(string authId)
+    {
+        var userAccount = userAccounts.Find(u =>
+            string.Equals(u.AuthId, authId, StringComparison.OrdinalIgnoreCase));
         return Task.FromResult(userAccount);
     }
 

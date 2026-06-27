@@ -1,5 +1,5 @@
 import { apiUrl } from './Helpers/config';
-import type { PublicAccountDataResponse } from './Helpers/types';
+import type { PublicAccountDataResponse, PublicProfileResponse } from './Helpers/types';
 
 import { getStoredUniqueId } from '@/session/session-storage';
 
@@ -15,6 +15,38 @@ export async function getUserAccount(): Promise<PublicAccountDataResponse> {
     }
 
     return await response.json();
+}
+
+export async function getPublicProfile(userName: string): Promise<PublicProfileResponse | null> {
+    const trimmedUserName = userName.trim();
+
+    if (!trimmedUserName) {
+        return null;
+    }
+
+    const apiUrlAddress = await apiUrl(`/public-profiles/${encodeURIComponent(trimmedUserName)}`);
+    const response = await fetch(apiUrlAddress);
+
+    if (response.status === 404) {
+        return null;
+    }
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Get public profile failed:', txt);
+        throw new Error('Failed to get public profile');
+    }
+
+    const profileData = await response.json();
+
+    if (Array.isArray(profileData)) {
+        return profileData.find((profile) =>
+            typeof profile?.userName === 'string' &&
+            profile.userName.toLowerCase() === trimmedUserName.toLowerCase()
+        ) ?? null;
+    }
+
+    return profileData;
 }
 
 export async function updateDisplayName(displayName: string): Promise<boolean> {

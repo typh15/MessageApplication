@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Identity;
+
 public class AccountServices : IAccountServices
 {
     private readonly IUserAccountRepository userAccountRepository;
     private readonly IImageServices imageServices;
+    private readonly PasswordHasher<UserAccount> passwordHasher = new PasswordHasher<UserAccount>();
 
     public AccountServices(
         IUserAccountRepository userAccountRepository,
@@ -18,10 +21,16 @@ public class AccountServices : IAccountServices
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(request.UniqueId) || string.IsNullOrWhiteSpace(request.AuthId))
+        if (
+            string.IsNullOrWhiteSpace(request.UniqueId) ||
+            string.IsNullOrWhiteSpace(request.AuthId) ||
+            string.IsNullOrWhiteSpace(request.Password)
+        )
         {
             return null;
         }
+
+        var authId = request.AuthId.Trim();
 
         if (!string.IsNullOrWhiteSpace(request.AvatarImageId))
         {
@@ -35,12 +44,13 @@ public class AccountServices : IAccountServices
             }
         }
 
-        var userAccount = new UserAccount(request.UniqueId, request.AuthId)
+        var userAccount = new UserAccount(request.UniqueId, authId, string.Empty)
         {
             DisplayName = request.DisplayName,
             AvatarImageId = request.AvatarImageId,
             PublicBlurb = request.PublicBlurb
         };
+        userAccount.PasswordHash = passwordHasher.HashPassword(userAccount, request.Password);
 
         var accountWasAdded = await userAccountRepository.AddUserAccountAsync(userAccount);
         if (!accountWasAdded)
@@ -60,6 +70,34 @@ public class AccountServices : IAccountServices
 
         var userAccount = await userAccountRepository.GetUserAccountAsync(uniqueId);
         if (userAccount == null)
+        {
+            return null;
+        }
+
+        return CreatePublicAccountDataResponse(userAccount);
+    }
+
+    public async Task<PublicAccountDataResponse?> AuthenticateUserAccountAsync(
+        string authId,
+        string password)
+    {
+        if (string.IsNullOrWhiteSpace(authId) || string.IsNullOrWhiteSpace(password))
+        {
+            return null;
+        }
+
+        var userAccount = await userAccountRepository.GetUserAccountByAuthIdAsync(authId.Trim());
+        if (userAccount == null || string.IsNullOrWhiteSpace(userAccount.PasswordHash))
+        {
+            return null;
+        }
+
+        var passwordResult = passwordHasher.VerifyHashedPassword(
+            userAccount,
+            userAccount.PasswordHash,
+            password);
+
+        if (passwordResult == PasswordVerificationResult.Failed)
         {
             return null;
         }

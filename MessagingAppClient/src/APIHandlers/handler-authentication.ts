@@ -2,12 +2,13 @@ import { apiUrl } from './Helpers/config';
 import { getSession, storeUserSession } from '@/session/session-storage';
 import type { ActiveUserResponse, RegisterUserResponse } from './Helpers/types';
 
-export async function registerUser(userName: string): Promise<RegisterUserResponse> {
+export async function registerUser(userName: string, password: string): Promise<RegisterUserResponse> {
     
     const apiUrlAddress = await apiUrl(`/registration`);
 
     const body = {
         UserName: userName,
+        Password: password,
     };
     
     const response = await fetch(apiUrlAddress, {
@@ -28,13 +29,52 @@ export async function registerUser(userName: string): Promise<RegisterUserRespon
     return data;
 }
 
-export async function createActiveUser(userName: string): Promise<ActiveUserResponse> {
-    const registeredUser = await registerUser(userName);
+export async function createActiveUser(
+    userName: string,
+    password: string
+): Promise<ActiveUserResponse> {
+    const registeredUser = await registerUser(userName, password);
 
     return {
         userName: registeredUser.userName,
         uniqueId: registeredUser.uniqueId,
     };
+}
+
+export async function createPasswordProtectedUser(
+    userName: string,
+    password: string
+): Promise<ActiveUserResponse> {
+    return await createActiveUser(userName, password);
+}
+
+export async function loginUser(
+    userName: string,
+    password: string
+): Promise<RegisterUserResponse> {
+    const apiUrlAddress = await apiUrl(`/login`);
+
+    const body = {
+        UserName: userName,
+        Password: password,
+    };
+
+    const response = await fetch(apiUrlAddress, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Login user failed:', txt);
+        throw new Error(txt || 'Invalid username or password.');
+    }
+
+    const data = await response.json();
+    await storeUserSession(data.userName ?? userName, data.uniqueId);
+
+    return data;
 }
 
 export async function createAnonymousActiveUser(userName: string): Promise<ActiveUserResponse> {

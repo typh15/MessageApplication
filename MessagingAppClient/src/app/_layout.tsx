@@ -1,21 +1,24 @@
 import { useColorScheme} from 'react-native';
 import { Stack } from 'expo-router';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
     const colorScheme = useColorScheme();
 
     return (
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="Login-Registration-Page" />
-                <Stack.Screen name="Homescreen-Board-Select-Page" />
-                <Stack.Screen name="Chat-Page" />
-                <Stack.Screen name="Board-Creation-Page" />
-                <Stack.Screen name="Board-Join-Requests-Page" />
-                <Stack.Screen name="Account-Page" />
-            </Stack>
-        </ThemeProvider>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="Login-Registration-Page" />
+                    <Stack.Screen name="Homescreen-Board-Select-Page" />
+                    <Stack.Screen name="Chat-Page" />
+                    <Stack.Screen name="Board-Creation-Page" />
+                    <Stack.Screen name="Board-Join-Requests-Page" />
+                    <Stack.Screen name="Account-Page" />
+                </Stack>
+            </ThemeProvider>
+        </SafeAreaProvider>
     );
 }

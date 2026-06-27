@@ -8,6 +8,7 @@ public interface IChatServices
     Task<List<ChatMessage>> GetMessagesForBoardAsync(int boardId);
     Task<CreateActiveUserResponse?> CreateAnonymousActiveUserAsync(string userName, string userAddress);
     Task<CreateActiveUserResponse?> CreateActiveUserAsync(string userName, string userAddress, string uniqueId);
+    Task<CreateActiveUserResponse?> CreateOrRefreshActiveUserAsync(string userName, string userAddress, string uniqueId);
     Task<SendMessageResponse?> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress);
     Task<bool> JoinBoardAsync(int boardId, string uniqueId, string userAddress, bool allowed);
     Task<bool> DeleteMessageAsync(string uniqueId, int boardId, int messageId);
@@ -25,5 +26,5 @@ public interface IChatServices
     Task<bool> RejectBoardInvite(int boardId, string uniqueId);
     Task<bool> JoinBoardByCodeAsync(string uniqueBoardId, string uniqueId, string password, string userAddress);
     Task<List<AccountDataUserNamesResponse>> GetAllPublicProfiles();
-    Task<AccountDataUserNamesResponse> GetPublicProfile(string userName);
+    Task<AccountDataUserNamesResponse?> GetPublicProfile(string userName);
 }

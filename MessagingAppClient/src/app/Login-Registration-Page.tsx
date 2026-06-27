@@ -8,14 +8,17 @@ import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { clearSession, getSession } from '@/hooks/use-session';
+import { clearSession } from '@/hooks/use-session';
 import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
 
 import { Button } from '@/components/ui/generic-button';
 import { LabeledTextBox } from '@/components/ui/labeled-text-box';
 
+const minimumPasswordLength = 8;
+
 export default function RegistrationScreen() {
     const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
@@ -87,6 +90,11 @@ export default function RegistrationScreen() {
         }
         const requestedUsername = username.trim();
 
+        if (password.length < minimumPasswordLength) {
+            setError(`Password must be at least ${minimumPasswordLength} characters`);
+            return;
+        }
+
         const names = await getActiveUserNames();
 
         const usernameExists = names.some(
@@ -97,7 +105,7 @@ export default function RegistrationScreen() {
             setError('Username already exists');
             return;
         }
-        if (activeUserNames.includes(username)){
+        if (activeUserNames.some((name) => name.toLowerCase() === requestedUsername.toLowerCase())) {
             setError('Username already exists');
             return;
         }
@@ -106,7 +114,7 @@ export default function RegistrationScreen() {
 
         try {
             await saveServerUrl(serverUrl);
-            const response = await APIHandler.createActiveUser(username);
+            const response = await APIHandler.createActiveUser(requestedUsername, password);
             console.log('User registered:', response);
 
             // Navigate to the boards selection screen
@@ -126,6 +134,7 @@ export default function RegistrationScreen() {
         try {
             await clearSession();
             setUsername('');
+            setPassword('');
             setError('');
             console.log('UniqueId cleared');
         } 
@@ -135,22 +144,29 @@ export default function RegistrationScreen() {
     };
 
     const handleLogin = async () => {
+        if (!username.trim()) {
+            setError('Please enter a username');
+            return;
+        }
+
+        if (!password) {
+            setError('Please enter your password');
+            return;
+        }
+
         try {
             setLoading(true);
             setError('');
-            const session = await getSession();
             await saveServerUrl(serverUrl);
-            if (!session) {
-                setError('No saved ID found. Please register first.');
-                return;
-            }
+            await APIHandler.loginUser(username.trim(), password);
 
             // Proceed to boards — the app will use the saved uniqueId
             router.push('../Homescreen-Board-Select-Page');
         } 
         catch (err) {
             console.error('Login error:', err);
-            setError('Failed to login');
+            const errorMessage = err instanceof Error ? err.message : 'Invalid username or password';
+            setError(errorMessage);
         } 
         finally {
             setLoading(false);
@@ -164,9 +180,9 @@ export default function RegistrationScreen() {
         contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
         <ThemedView style={styles.container}>
             <ThemedView style={styles.titleContainer}>
-                <ThemedText type="title">Create Your Username</ThemedText>
+                <ThemedText type="title">Sign In</ThemedText>
                 <ThemedText type="subtitle" style={styles.subtitle}>
-                    Enter a username to get started
+                    Use your username and password to continue
                 </ThemedText>
             </ThemedView>
 
@@ -183,6 +199,18 @@ export default function RegistrationScreen() {
                     editable={!loading}
                 />
 
+                <LabeledTextBox
+                    labelText="Password"
+                    placeholder="Enter your password..."
+                    value={password}
+                    onChangeText={(text) => {
+                        setPassword(text);
+                        setError('');
+                    }}
+                    editable={!loading}
+                    password={true}
+                />
+
             {error ? (
                 <ThemedView style={[styles.errorContainer, { borderColor: '#ff4444' }]}>
                 <ThemedText style={{ color: '#ff4444' }}>{error}</ThemedText>
@@ -193,7 +221,13 @@ export default function RegistrationScreen() {
                     showText={true}
                     buttonText="Register"
                     onPress={handleRegister}
-                    disabled={loading || username.trim().length === 0 || activeUserNames.includes(username)}
+                    disabled={
+                        loading ||
+                        username.trim().length === 0 ||
+                        activeUserNames.some(
+                            (name) => name.toLowerCase() === username.trim().toLowerCase()
+                        )
+                    }
                     style={styles.buttonListStyle}
                     textStyle={styles.buttonText}
                 />
@@ -202,7 +236,7 @@ export default function RegistrationScreen() {
                     showText={true}
                     buttonText="Login"
                     onPress={handleLogin}
-                    disabled={loading || username.trim().length === 0 || !activeUserNames.includes(username)}
+                    disabled={loading || username.trim().length === 0 || password.length === 0}
                     style={styles.buttonListStyle}
                     textStyle={styles.buttonText}
                 />

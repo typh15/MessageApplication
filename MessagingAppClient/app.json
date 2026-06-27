@@ -57,6 +57,9 @@
     },
     "extra": {
       "router": {},
+      "pushNotifications": {
+        "mode": "auto"
+      },
       "eas": {
         "projectId": "f090f0b0-079a-4f65-b372-50d42967551e"
       }

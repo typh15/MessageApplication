@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import type { ImageLoadEventData } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Alert, Linking, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { getImageUrl } from '@/APIHandlers/ApiHandlerHub';
@@ -27,7 +27,8 @@ type MessageBoxProps = {
     messageType?: 'text' | 'image';
     imageId?: string;
 };
-export function MessageBox({
+
+export const MessageBox = memo(function MessageBox({
     sender,
     message,
     timestamp,
@@ -48,9 +49,11 @@ export function MessageBox({
     const formattedDateTime = `${formattedTime} \u00B7 ${formattedDate}`;
     const isImageMessage = messageType === 'image';
     const trimmedMessage = message.trim();
-    const imageUrl = imageId ? getImageUrl(imageId) : null;
-    const fittedImageSize = getFittedImageSize(imageDimensions);
+    const imageUrl = useMemo(() => imageId ? getImageUrl(imageId) : null, [imageId]);
+    const useFixedImageLayout = Platform.OS === 'android';
+    const fittedImageSize = getFittedImageSize(useFixedImageLayout ? null : imageDimensions);
     const imageMessageWidth = fittedImageSize.width + Spacing.three * 2;
+    const imageContentFit = useFixedImageLayout ? 'cover' : 'contain';
 
     useEffect(() => {
         setImageDimensions(null);
@@ -94,7 +97,13 @@ export function MessageBox({
         const { width, height } = event.source;
 
         if (width > 0 && height > 0) {
-            setImageDimensions({ width, height });
+            setImageDimensions((currentDimensions) => {
+                if (currentDimensions) {
+                    return currentDimensions;
+                }
+
+                return { width, height };
+            });
         }
     };
 
@@ -143,11 +152,14 @@ export function MessageBox({
                         ]}
                     >
                         <Image
-                            source={{ uri: imageUrl }}
+                            key={imageId}
+                            source={imageUrl}
                             style={styles.messageImage}
-                            contentFit="contain"
-                            transition={120}
-                            onLoad={handleImageLoad}
+                            recyclingKey={imageId}
+                            contentFit={imageContentFit}
+                            cachePolicy="memory-disk"
+                            priority="high"
+                            onLoad={useFixedImageLayout ? undefined : handleImageLoad}
                             accessibilityLabel={trimmedMessage || 'Picture message'}
                         />
                     </Pressable>
@@ -167,10 +179,12 @@ export function MessageBox({
                             />
 
                             <Image
-                                source={{ uri: imageUrl }}
+                                key={imageId}
+                                source={imageUrl}
                                 style={styles.previewImage}
+                                recyclingKey={imageId}
                                 contentFit="contain"
-                                transition={120}
+                                cachePolicy="memory-disk"
                                 accessibilityLabel={trimmedMessage || 'Picture message preview'}
                             />
 
@@ -208,7 +222,7 @@ export function MessageBox({
             ) : null}
         </View>
     );
-}
+});
 
 function getFittedImageSize(dimensions: ImageDimensions | null): ImageDimensions {
     if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0) {

@@ -1,45 +1,60 @@
-import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
 
 import type { Session } from '@/session/session-storage';
 
 import {
+    loadPushNotificationsModuleAsync,
     subscribeToPushTokenRefresh,
     syncPushNotificationRegistration,
 } from './push-notification-registration';
+import { getPushNotificationAvailability } from './push-notification-mode';
+
+type NotificationResponse = import('expo-notifications').NotificationResponse;
+type NotificationSubscription = {
+    remove: () => void;
+};
 
 export function usePushNotifications(session: Session | null) {
     const router = useRouter();
 
     useEffect(() => {
-        if (Platform.OS === 'web') {
+        if (!getPushNotificationAvailability().enabled) {
             return;
         }
 
-        const responseSubscription =
-            Notifications.addNotificationResponseReceivedListener((response) => {
-                openNotificationDestination(response, router);
-            });
+        let responseSubscription: NotificationSubscription | null = null;
+        let removed = false;
 
-        void Notifications.getLastNotificationResponseAsync()
+        void loadPushNotificationsModuleAsync()
+            .then((Notifications) => {
+                if (!Notifications || removed) {
+                    return;
+                }
+
+                responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+                    openNotificationDestination(response, router);
+                });
+
+                return Notifications.getLastNotificationResponseAsync();
+            })
             .then((response) => {
-                if (response) {
+                if (response && !removed) {
                     openNotificationDestination(response, router);
                 }
             })
             .catch((err) => {
-                console.warn('Failed to read last notification response:', err);
+                console.warn('Failed to start push notification response listener:', err);
             });
 
         return () => {
-            responseSubscription.remove();
+            removed = true;
+            responseSubscription?.remove();
         };
     }, [router]);
 
     useEffect(() => {
-        if (!session || Platform.OS === 'web') {
+        if (!session || !getPushNotificationAvailability().enabled) {
             return;
         }
 
@@ -56,7 +71,7 @@ export function usePushNotifications(session: Session | null) {
 }
 
 function openNotificationDestination(
-    response: Notifications.NotificationResponse,
+    response: NotificationResponse,
     router: ReturnType<typeof useRouter>
 ) {
     const boardId = getStringDataValue(response.notification.request.content.data?.boardId);

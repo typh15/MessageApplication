@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -9,18 +11,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-builder.Services.AddSingleton<IActiveUserRepository, ActiveUserRepository>();
-builder.Services.AddSingleton<IMessageBoardRepository, MessageBoardRepository>();
+builder.Services.AddSqlDataStore(builder.Configuration, builder.Environment);
+builder.Services.Configure<ImageStorageOptions>(
+    builder.Configuration.GetSection(ImageStorageOptions.SectionName));
+builder.Services.AddMessagingAppRepositories(builder.Configuration);
+
 builder.Services.AddSingleton<IChatServices, ChatServices>();
 
-builder.Services.AddSingleton<IUserAccountRepository, UserAccountRepository>();
 builder.Services.AddSingleton<IAccountServices, AccountServices>();
 
-builder.Services.AddSingleton<IImageRepository, ImageRepository>();
 builder.Services.AddSingleton<IImageServices, ImageServices>();
 
 builder.Services.AddSingleton<HttpClient>();
-builder.Services.AddSingleton<IPushNotificationRepository, PushNotificationRepository>();
 builder.Services.AddSingleton<IExpoPushNotificationClient, ExpoPushNotificationClient>();
 builder.Services.AddSingleton<IPushNotificationServices, PushNotificationServices>();
 
@@ -36,8 +38,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+await app.Services.InitializeSqlDataStoreAsync();
+
 var imageServices = app.Services.GetRequiredService<IImageServices>();
-await imageServices.ClearStoredImagesAsync();
+var imageStorageOptions = app.Services.GetRequiredService<IOptions<ImageStorageOptions>>().Value;
+if (imageStorageOptions.ClearStoredImagesOnStartup)
+{
+    await imageServices.ClearStoredImagesAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

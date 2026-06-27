@@ -72,7 +72,7 @@ MessagingApp/
 - Controller-based REST API
 - Dependency injection with singleton services and repositories
 - DTOs for requests and responses
-- In-memory repositories for development storage
+- In-memory repositories for development storage, with SQLite-backed repository implementations being added in stages
 - File-backed image payload storage that is cleared at API startup
 - CORS configured to allow any origin, method, and header
 
@@ -347,7 +347,12 @@ Images are limited to 5 MB and supported content types are JPEG, PNG, and WebP.
 ## Development Notes
 
 - The API uses singleton repositories, so most state lives only for the current process.
-- Uploaded image files are deleted on API startup by `ClearStoredImagesAsync()`.
+- The API is staged to initialize a local SQLite database from `ConnectionStrings:MessagingAppData`; migrated repositories can be switched between SQL and memory through `RepositoryStorage`.
+- When image metadata uses SQL, `ImageStorage:ClearStoredImagesOnStartup` should stay `false` so persisted metadata still matches files on disk.
+- SQL-backed push notifications preserve one current owner per Expo push token.
+- SQL-backed active users rehydrate board membership, request, and invite lists from join tables.
+- SQL-backed message boards store board metadata, messages, members, requests, and invites in normalized tables.
+- Uploaded image files are deleted on API startup when `ImageStorage:ClearStoredImagesOnStartup` is `true`.
 - There is no persistent database, authentication provider, authorization policy, or production identity system yet.
 - Public board names must be unique, case-insensitively. Private board names are not checked by the same rule.
 - Private boards that are not password-protected cannot be joined directly by board ID; users must request access.

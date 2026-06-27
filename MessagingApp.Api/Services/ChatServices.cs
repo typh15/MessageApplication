@@ -25,12 +25,33 @@ public class ChatServices : IChatServices
         var boards = await messageBoardRepository.GetMessageBoardsAsync();
         var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
 
-        return boards
-            .Where(board =>
-                board.VisibleToPublic ||
-                activeUser?.MessageBoardIds.Contains(board.BoardId) == true)
-            .ToList();
+        var visibleBoards = new List<MessageBoardDataResponse>();
+
+        foreach (var board in boards)
+        {
+            if (board.VisibleToPublic)
+            {
+                visibleBoards.Add(board);
+                continue;
             }
+
+            if (activeUser == null)
+            {
+                continue;
+            }
+
+            var userIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(
+                board.BoardId,
+                activeUser);
+
+            if (userIsInBoard)
+            {
+                visibleBoards.Add(board);
+            }
+        }
+
+        return visibleBoards;
+    }
 
     public async Task<MessageBoardDataResponse?> GetMessageBoardByIdAsync(int boardId, string uniqueId)
     {
@@ -379,7 +400,9 @@ public class ChatServices : IChatServices
             return false;
         }
 
-        if (board.ActiveUsers.Contains(activeUser))
+        var userIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser);
+
+        if (userIsInBoard)
         {
             if (message.FromUserName == activeUser.UserName)
             {
@@ -405,7 +428,8 @@ public class ChatServices : IChatServices
 
         else
         {  
-            if (board.ActiveUsers.Contains(activeUser))
+            if (activeUser != null &&
+                await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser))
             {
                 return true;
             }
@@ -550,7 +574,15 @@ public class ChatServices : IChatServices
 
         var reqestingUser = activeUsers.FirstOrDefault(u => u.UserName == userName);
 
-        if (!board.UserRequests.Contains(reqestingUser))
+        if (reqestingUser == null)
+        {
+            return false;
+        }
+
+        var userIsInRequestList =
+            await messageBoardRepository.CheckUserInRequestedListAsync(boardId, reqestingUser);
+
+        if (!userIsInRequestList)
         {
             return false;
         }
@@ -569,10 +601,6 @@ public class ChatServices : IChatServices
             return false;
         }
         
-        if (reqestingUser == null)
-        {
-            return false;
-        }
         bool MemberIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeMember);
         bool userIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, reqestingUser);
         
@@ -611,7 +639,15 @@ public class ChatServices : IChatServices
 
         var reqestingUser = activeUsers.FirstOrDefault(u => u.UserName == userName);
 
-        if (!board.UserRequests.Contains(reqestingUser))
+        if (reqestingUser == null)
+        {
+            return false;
+        }
+
+        var userIsInRequestList =
+            await messageBoardRepository.CheckUserInRequestedListAsync(boardId, reqestingUser);
+
+        if (!userIsInRequestList)
         {
             return false;
         }
@@ -630,10 +666,6 @@ public class ChatServices : IChatServices
             return false;
         }
         
-        if (reqestingUser == null)
-        {
-            return false;
-        }
         bool MemberIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeMember);
         bool userIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, reqestingUser);
         
@@ -770,19 +802,21 @@ public class ChatServices : IChatServices
             return null;
         }
 
-        var invitedBoardIds = await activeUserRepository.GetAllInvitedBoardIds(uniqueId);
+        var boards = await messageBoardRepository.GetMessageBoardsAsync();
         var invites = new List<MessageBoardInviteResponse>();
 
-        foreach (var boardId in invitedBoardIds)
+        foreach (var board in boards)
         {
-            var boardData = await messageBoardRepository.GetMessageBoardDataByIdAsync(boardId);
+            var userIsInvited = await messageBoardRepository.CheckUserInInvitesListAsync(
+                board.BoardId,
+                activeUser);
 
-            if (boardData != null)
+            if (userIsInvited)
             {
                 invites.Add(new MessageBoardInviteResponse(
-                    boardData.BoardId,
-                    boardData.BoardName,
-                    boardData.UniqueBoardId
+                    board.BoardId,
+                    board.BoardName,
+                    board.UniqueBoardId
                 ));
             }
         }

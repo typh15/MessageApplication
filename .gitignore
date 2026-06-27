@@ -272,6 +272,12 @@ ServiceFabricBackup/
 *.ldf
 *.ndf
 
+# Local API data stores
+MessagingApp.Api/App_Data/**/*.db
+MessagingApp.Api/App_Data/**/*.db-*
+MessagingApp.Api/App_Data/**/*.sqlite
+MessagingApp.Api/App_Data/**/*.sqlite-*
+
 # Business Intelligence projects
 *.rdl.data
 *.bim.layout

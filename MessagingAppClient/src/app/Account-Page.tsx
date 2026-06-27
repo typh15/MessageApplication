@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,9 +11,17 @@ import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { Button } from '@/components/ui/generic-button';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+import {
+    getProfileCacheKey,
+    usePublicProfilesByUserName,
+} from '@/hooks/API/use-public-profiles-by-user-name';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { createImageUploadInput, SUPPORTED_IMAGE_TYPES } from '@/utils/image-upload';
+import {
+    formatPrivateUserChatParticipantLabel,
+    getOtherPrivateUserChatUserName,
+} from '@/utils/private-user-chat';
 
 type InviteAction = 'accept' | 'decline';
 
@@ -162,7 +170,11 @@ export default function AccountScreen() {
         }
     };
 
-    const handleInviteAction = async (invite: MessageBoardInvite, action: InviteAction) => {
+    const handleInviteAction = async (
+        invite: MessageBoardInvite,
+        action: InviteAction,
+        inviteTitle: string = invite.boardName
+    ) => {
         try {
             setInviteBusyState({ boardId: invite.boardId, action });
             setError('');
@@ -179,7 +191,7 @@ export default function AccountScreen() {
 
             await APIHandler.rejectBoardInvite(invite.boardId);
             await loadAccountPage();
-            Alert.alert('Invite declined', `${invite.boardName} was removed from your invites.`);
+            Alert.alert('Invite declined', `${inviteTitle} was removed from your invites.`);
         }
         catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to update invite';
@@ -202,6 +214,11 @@ export default function AccountScreen() {
         (account?.publicBlurb ?? '') !== publicBlurb;
     const avatarImageUrl = account?.avatarImageId ? APIHandler.getImageUrl(account.avatarImageId) : null;
     const avatarInitial = (displayName.trim() || session?.userName || '?').charAt(0).toUpperCase();
+    const privateChatInviteUserNames = useMemo(
+        () => getPrivateChatUserNamesFromInvites(invites, session?.userName),
+        [invites, session?.userName]
+    );
+    const privateChatProfilesByUserName = usePublicProfilesByUserName(privateChatInviteUserNames);
 
     return (
         <ScrollView
@@ -246,9 +263,6 @@ export default function AccountScreen() {
                     <ThemedView style={styles.profileCopy}>
                         <ThemedText style={styles.detailText}>
                             Username: {session?.userName ?? 'Unknown'}
-                        </ThemedText>
-                        <ThemedText style={styles.detailText}>
-                            ID: {session?.uniqueId ?? 'Not signed in'}
                         </ThemedText>
                         <Button
                             showText={true}
@@ -326,6 +340,19 @@ export default function AccountScreen() {
                 ) : (
                     <ThemedView style={styles.inviteList}>
                         {invites.map((invite) => {
+                            const privateChatUserName = getOtherPrivateUserChatUserName(
+                                invite.boardName,
+                                session?.userName
+                            );
+                            const privateChatProfile = privateChatUserName
+                                ? privateChatProfilesByUserName[getProfileCacheKey(privateChatUserName)]
+                                : null;
+                            const inviteTitle = privateChatUserName
+                                ? formatPrivateUserChatParticipantLabel({
+                                    userName: privateChatUserName,
+                                    displayName: privateChatProfile?.displayName,
+                                })
+                                : invite.boardName;
                             const accepting =
                                 inviteBusyState?.boardId === invite.boardId &&
                                 inviteBusyState.action === 'accept';
@@ -336,8 +363,8 @@ export default function AccountScreen() {
                             return (
                                 <ThemedView key={invite.boardId} style={styles.inviteRow}>
                                     <ThemedView style={styles.inviteCopy}>
-                                        <ThemedText style={styles.inviteTitle}>{invite.boardName}</ThemedText>
-                                        {invite.uniqueBoardId ? (
+                                        <ThemedText style={styles.inviteTitle}>{inviteTitle}</ThemedText>
+                                        {invite.uniqueBoardId && !privateChatUserName ? (
                                             <ThemedText style={styles.detailText}>ID: {invite.uniqueBoardId}</ThemedText>
                                         ) : null}
                                     </ThemedView>
@@ -346,7 +373,7 @@ export default function AccountScreen() {
                                         <Button
                                             showText={true}
                                             buttonText={accepting ? 'Accepting...' : 'Accept'}
-                                            onPress={() => handleInviteAction(invite, 'accept')}
+                                            onPress={() => handleInviteAction(invite, 'accept', inviteTitle)}
                                             disabled={inviteBusyState !== null}
                                             style={styles.primaryButton}
                                             textStyle={styles.buttonText}
@@ -354,7 +381,7 @@ export default function AccountScreen() {
                                         <Button
                                             showText={true}
                                             buttonText={declining ? 'Declining...' : 'Decline'}
-                                            onPress={() => handleInviteAction(invite, 'decline')}
+                                            onPress={() => handleInviteAction(invite, 'decline', inviteTitle)}
                                             disabled={inviteBusyState !== null}
                                             style={styles.secondaryButton}
                                             textStyle={styles.buttonText}
@@ -368,6 +395,23 @@ export default function AccountScreen() {
             </ThemedView>
         </ScrollView>
     );
+}
+
+function getPrivateChatUserNamesFromInvites(
+    invites: MessageBoardInvite[],
+    currentUserName?: string | null
+): string[] {
+    const userNames = new Map<string, string>();
+
+    for (const invite of invites) {
+        const otherUserName = getOtherPrivateUserChatUserName(invite.boardName, currentUserName);
+
+        if (otherUserName) {
+            userNames.set(getProfileCacheKey(otherUserName), otherUserName);
+        }
+    }
+
+    return Array.from(userNames.values());
 }
 
 const styles = StyleSheet.create({
@@ -396,6 +440,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#11131A',
     },
     sectionHeader: {
+        backgroundColor: '#11131A',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -404,8 +449,10 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
+        alignItems: 'center'
     },
     profileHeader: {
+        backgroundColor: '#11131A',
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.three,
@@ -431,16 +478,18 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     profileCopy: {
+        backgroundColor: '#11131A',
         flex: 1,
         minWidth: 0,
         gap: Spacing.two,
         alignItems: 'flex-start',
     },
     detailText: {
-        fontSize: 13,
+        fontSize: 15,
         opacity: 0.75,
     },
     inputGroup: {
+        backgroundColor: '#11131A',
         gap: Spacing.two,
     },
     label: {
@@ -462,6 +511,7 @@ const styles = StyleSheet.create({
         textAlignVertical: 'top',
     },
     actionRow: {
+        backgroundColor: '#11131A',
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: Spacing.two,

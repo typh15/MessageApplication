@@ -29,9 +29,17 @@ import { ControlSize, MaxContentWidth, Radius, Spacing, type AppTheme } from '@/
 import { useBoardDetails } from '@/hooks/API/use-board-details';
 import { useBoardJoinRequests } from '@/hooks/API/use-board-join-requests';
 import { useMessages } from '@/hooks/API/use-messages';
+import {
+    getProfileCacheKey,
+    usePublicProfilesByUserName,
+} from '@/hooks/API/use-public-profiles-by-user-name';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/hooks/use-session';
 import { createImageUploadInput, SUPPORTED_IMAGE_TYPES } from '@/utils/image-upload';
+import {
+    formatPrivateUserChatParticipantLabel,
+    getOtherPrivateUserChatUserName,
+} from '@/utils/private-user-chat';
 
 const BOTTOM_THRESHOLD = 48;
 const COMPOSER_CONTROL_SIZE = ControlSize.lg;
@@ -63,13 +71,28 @@ export default function ChatScreen() {
         refresh: refreshMessages,
     } = useMessages(boardId, isValidBoardId);
     const { data: boardInfo } = useBoardDetails(boardId, isValidBoardId);
-    const { data: joinRequests } = useBoardJoinRequests(boardId, isValidBoardId);
 
     const messages = messagesData ?? [];
-    const boardTitle = boardInfo?.boardName ?? `Board ${boardId}`;
-    const uniqueBoardId = boardInfo?.uniqueBoardId ?? null;
-    const hasJoinRequests = (joinRequests ?? []).length > 0;
+    const rawBoardTitle = boardInfo?.boardName ?? `Board ${boardId}`;
+    const privateChatUserName = getOtherPrivateUserChatUserName(boardInfo?.boardName ?? '', session?.userName);
+    const privateChatProfilesByUserName = usePublicProfilesByUserName(
+        privateChatUserName ? [privateChatUserName] : []
+    );
+    const privateChatProfile = privateChatUserName
+        ? privateChatProfilesByUserName[getProfileCacheKey(privateChatUserName)]
+        : null;
+    const isPrivateUserChat = !!privateChatUserName;
+    const boardTitle = privateChatUserName
+        ? formatPrivateUserChatParticipantLabel({
+            userName: privateChatUserName,
+            displayName: privateChatProfile?.displayName,
+        })
+        : rawBoardTitle;
+    const uniqueBoardId = isPrivateUserChat ? null : boardInfo?.uniqueBoardId ?? null;
+    const { data: joinRequests } = useBoardJoinRequests(boardId, isValidBoardId && !isPrivateUserChat);
+    const hasJoinRequests = !isPrivateUserChat && (joinRequests ?? []).length > 0;
     const canUseBoardActions = !!session && isValidBoardId;
+    const canShowInviteBar = !!boardInfo && !isPrivateUserChat;
     const canPickImage = !loading && canUseBoardActions;
     const canSendMessage = canUseBoardActions && !loading && (text.trim().length > 0 || !!selectedImage);
     const safeAreaEdges: Edge[] = isKeyboardVisible
@@ -271,13 +294,15 @@ export default function ChatScreen() {
                     onJoinRequestsPress={handleNewUserRequest}
                 />
 
-                <BoardInviteBar
-                    inviteUserName={inviteUserName}
-                    invitingUser={invitingUser}
-                    disabled={invitingUser || !canUseBoardActions}
-                    onChangeInviteUserName={setInviteUserName}
-                    onInviteUser={handleInviteUser}
-                />
+                {canShowInviteBar ? (
+                    <BoardInviteBar
+                        inviteUserName={inviteUserName}
+                        invitingUser={invitingUser}
+                        disabled={invitingUser || !canUseBoardActions}
+                        onChangeInviteUserName={setInviteUserName}
+                        onInviteUser={handleInviteUser}
+                    />
+                ) : null}
 
                 <KeyboardAvoidingView
                     style={styles.chatBody}

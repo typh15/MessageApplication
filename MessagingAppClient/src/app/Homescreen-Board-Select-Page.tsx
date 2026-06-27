@@ -12,7 +12,19 @@ import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { Button } from '@/components/ui/generic-button';
 import { BottomTabInset, ControlSize, MaxContentWidth, Radius, Spacing, type AppTheme } from '@/constants/theme';
 import { useBoards } from '@/hooks/API/use-boards';
+import {
+    getProfileCacheKey,
+    type PublicProfileByUserName,
+    usePublicProfilesByUserName,
+} from '@/hooks/API/use-public-profiles-by-user-name';
+import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
+import {
+    createHiddenPrivateUserChatPassword,
+    createPrivateUserChatBoardName,
+    formatPrivateUserChatParticipantLabel,
+    getOtherPrivateUserChatUserName,
+} from '@/utils/private-user-chat';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -30,8 +42,10 @@ export default function BoardSelectionScreen() {
     const [profileSearchResult, setProfileSearchResult] = useState<PublicProfileResponse | null>(null);
     const [profileSearchError, setProfileSearchError] = useState('');
     const [searchingProfile, setSearchingProfile] = useState(false);
+    const [openingPrivateChatForUserName, setOpeningPrivateChatForUserName] = useState<string | null>(null);
     const router = useRouter();
     const styles = useBoardSelectionStyles();
+    const { session } = useSession();
 
     const {
         data: boardsData,
@@ -41,6 +55,11 @@ export default function BoardSelectionScreen() {
     } = useBoards();
     const boards = boardsData ?? [];
     const errorMessage = actionError || boardsError?.message || '';
+    const privateChatUserNames = useMemo(
+        () => getPrivateChatUserNamesFromBoards(boards, session?.userName),
+        [boards, session?.userName]
+    );
+    const privateChatProfilesByUserName = usePublicProfilesByUserName(privateChatUserNames);
 
     const handleCreateBoard = () => {
         setActionsMenuVisible(false);
@@ -84,7 +103,7 @@ export default function BoardSelectionScreen() {
     };
 
     const handleCloseProfileSearch = () => {
-        if (searchingProfile) {
+        if (searchingProfile || openingPrivateChatForUserName) {
             return;
         }
 
@@ -198,6 +217,106 @@ export default function BoardSelectionScreen() {
         }
     };
 
+    const handleOpenPrivateUserChat = async (profile: PublicProfileResponse) => {
+        const currentUserName = session?.userName?.trim();
+        const otherUserName = profile.userName?.trim();
+
+        if (!session || !currentUserName) {
+            Alert.alert('Session expired', 'Please log in again before starting a chat.');
+            router.replace('../Login-Registration-Page');
+            return;
+        }
+
+        if (!otherUserName) {
+            Alert.alert('Missing username', 'This profile does not have a usable username.');
+            return;
+        }
+
+        const privateChatBoardName = createPrivateUserChatBoardName(currentUserName, otherUserName);
+
+        if (!privateChatBoardName) {
+            Alert.alert('Unable to start chat', 'Private chats need two different usernames.');
+            return;
+        }
+
+        const existingPrivateChatBoard = boards.find(
+            (board) => board.boardName.toLowerCase() === privateChatBoardName.toLowerCase()
+        );
+
+        if (existingPrivateChatBoard) {
+            setProfileSearchVisible(false);
+            setProfileSearchUserName('');
+            setProfileSearchResult(null);
+            setProfileSearchError('');
+            router.push({
+                pathname: '../Chat-Page',
+                params: { boardId: existingPrivateChatBoard.boardId.toString() },
+            });
+            return;
+        }
+
+        try {
+            setOpeningPrivateChatForUserName(otherUserName);
+            setProfileSearchError('');
+
+            const pendingInvites = await APIHandler.getUserBoardInvites();
+            const matchingPrivateChatInvite = pendingInvites.find(
+                (invite) => invite.boardName.toLowerCase() === privateChatBoardName.toLowerCase()
+            );
+
+            if (matchingPrivateChatInvite) {
+                await APIHandler.acceptBoardInvite(matchingPrivateChatInvite.boardId);
+                const updatedBoards = await refreshBoards();
+                const acceptedBoard = updatedBoards?.find(
+                    (board) => board.boardId === matchingPrivateChatInvite.boardId
+                );
+
+                setProfileSearchVisible(false);
+                setProfileSearchUserName('');
+                setProfileSearchResult(null);
+                setProfileSearchError('');
+
+                router.push({
+                    pathname: '../Chat-Page',
+                    params: {
+                        boardId: (acceptedBoard?.boardId ?? matchingPrivateChatInvite.boardId).toString(),
+                    },
+                });
+                return;
+            }
+
+            const createdBoard = await APIHandler.createMessageBoard(
+                privateChatBoardName,
+                false,
+                true,
+                createHiddenPrivateUserChatPassword()
+            );
+
+            await APIHandler.inviteUserToBoard(createdBoard.boardId, otherUserName);
+            const updatedBoards = await refreshBoards();
+            const openedBoard = updatedBoards?.find((board) => board.boardId === createdBoard.boardId) ?? createdBoard;
+
+            setProfileSearchVisible(false);
+            setProfileSearchUserName('');
+            setProfileSearchResult(null);
+            setProfileSearchError('');
+
+            router.push({
+                pathname: '../Chat-Page',
+                params: { boardId: openedBoard.boardId.toString() },
+            });
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to start private chat';
+            setProfileSearchError(errorMessage);
+            console.error('Open private chat error:', err);
+            Alert.alert('Error', errorMessage);
+        }
+        finally {
+            setOpeningPrivateChatForUserName(null);
+        }
+    };
+
     return (
         <ThemedView style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
@@ -225,6 +344,8 @@ export default function BoardSelectionScreen() {
                             loading={boardsLoading}
                             joining={joining}
                             selectedBoardId={selectedBoardId}
+                            currentUserName={session?.userName}
+                            privateChatProfilesByUserName={privateChatProfilesByUserName}
                             onJoinBoard={handleJoinBoard}
                         />
                     </ThemedView>
@@ -246,9 +367,13 @@ export default function BoardSelectionScreen() {
                     userName={profileSearchUserName}
                     profile={profileSearchResult}
                     searching={searchingProfile}
+                    openingPrivateChatForUserName={openingPrivateChatForUserName}
+                    boards={boards}
+                    currentUserName={session?.userName}
                     errorMessage={profileSearchError}
                     onChangeUserName={setProfileSearchUserName}
                     onSearchProfile={handleSearchProfile}
+                    onOpenPrivateChat={handleOpenPrivateUserChat}
                     onClose={handleCloseProfileSearch}
                 />
             </SafeAreaView>
@@ -615,9 +740,13 @@ type UserProfileSearchModalProps = {
     userName: string;
     profile: PublicProfileResponse | null;
     searching: boolean;
+    openingPrivateChatForUserName: string | null;
+    boards: MessageBoard[];
+    currentUserName?: string | null;
     errorMessage: string;
     onChangeUserName: (value: string) => void;
     onSearchProfile: () => void;
+    onOpenPrivateChat: (profile: PublicProfileResponse) => void;
     onClose: () => void;
 };
 
@@ -626,12 +755,17 @@ function UserProfileSearchModal({
     userName,
     profile,
     searching,
+    openingPrivateChatForUserName,
+    boards,
+    currentUserName,
     errorMessage,
     onChangeUserName,
     onSearchProfile,
+    onOpenPrivateChat,
     onClose,
 }: UserProfileSearchModalProps) {
     const styles = useBoardSelectionStyles();
+    const actionInProgress = searching || !!openingPrivateChatForUserName;
 
     return (
         <ActionModal
@@ -639,7 +773,7 @@ function UserProfileSearchModal({
             title="Search user profiles"
             subtitle="Look up someone by username."
             closeAccessibilityLabel="Close profile search"
-            disabled={searching}
+            disabled={actionInProgress}
             size="wide"
             onClose={onClose}
         >
@@ -648,14 +782,14 @@ function UserProfileSearchModal({
                     value={userName}
                     onChangeText={onChangeUserName}
                     placeholder="Username"
-                    editable={!searching}
+                    editable={!actionInProgress}
                     onSubmitEditing={onSearchProfile}
                 />
 
                 <ModalActionRow
                     primaryText={searching ? 'Searching...' : 'Search'}
-                    primaryDisabled={searching}
-                    secondaryDisabled={searching}
+                    primaryDisabled={actionInProgress}
+                    secondaryDisabled={actionInProgress}
                     onPrimaryPress={onSearchProfile}
                     onSecondaryPress={onClose}
                 />
@@ -667,7 +801,13 @@ function UserProfileSearchModal({
                 ) : null}
 
                 {profile ? (
-                    <ProfileResultCard profile={profile} />
+                    <ProfileResultCard
+                        profile={profile}
+                        boards={boards}
+                        currentUserName={currentUserName}
+                        openingPrivateChatForUserName={openingPrivateChatForUserName}
+                        onOpenPrivateChat={onOpenPrivateChat}
+                    />
                 ) : null}
             </ThemedView>
         </ActionModal>
@@ -676,15 +816,34 @@ function UserProfileSearchModal({
 
 type ProfileResultCardProps = {
     profile: PublicProfileResponse;
+    boards: MessageBoard[];
+    currentUserName?: string | null;
+    openingPrivateChatForUserName: string | null;
+    onOpenPrivateChat: (profile: PublicProfileResponse) => void;
 };
 
-function ProfileResultCard({ profile }: ProfileResultCardProps) {
+function ProfileResultCard({
+    profile,
+    boards,
+    currentUserName,
+    openingPrivateChatForUserName,
+    onOpenPrivateChat,
+}: ProfileResultCardProps) {
+    const theme = useTheme();
     const styles = useBoardSelectionStyles();
     const avatarImageUrl = profile.avatarImageId ? APIHandler.getImageUrl(profile.avatarImageId) : null;
     const userName = profile.userName?.trim() || 'Unknown user';
     const uniqueId = profile.uniqueId?.trim() || 'Unknown';
     const displayName = profile.displayName?.trim() || userName;
     const avatarInitial = displayName.charAt(0).toUpperCase() || '?';
+    const privateChatBoardName = currentUserName
+        ? createPrivateUserChatBoardName(currentUserName, userName)
+        : null;
+    const existingPrivateChatBoard = privateChatBoardName
+        ? boards.find((board) => board.boardName.toLowerCase() === privateChatBoardName.toLowerCase())
+        : null;
+    const isOpeningPrivateChat = openingPrivateChatForUserName?.toLowerCase() === userName.toLowerCase();
+    const disablePrivateChatAction = !privateChatBoardName || !!openingPrivateChatForUserName;
 
     return (
         <ThemedView style={styles.profileResultCard}>
@@ -722,6 +881,23 @@ function ProfileResultCard({ profile }: ProfileResultCardProps) {
                         No public blurb yet.
                     </ThemedText>
                 )}
+
+                <Button
+                    showText={true}
+                    buttonText={
+                        isOpeningPrivateChat
+                            ? 'Opening...'
+                            : existingPrivateChatBoard
+                                ? 'Open chat'
+                                : 'Start chat'
+                    }
+                    onPress={() => onOpenPrivateChat(profile)}
+                    disabled={disablePrivateChatAction}
+                    style={styles.profileChatButton}
+                    textStyle={styles.buttonText}
+                    backgroundColor={theme.actionPrimary}
+                    borderRadius={Radius.sm}
+                />
             </ThemedView>
         </ThemedView>
     );
@@ -732,6 +908,8 @@ type BoardListProps = {
     loading: boolean;
     joining: boolean;
     selectedBoardId: number | null;
+    currentUserName?: string | null;
+    privateChatProfilesByUserName: PublicProfileByUserName;
     onJoinBoard: (boardId: number) => void;
 };
 
@@ -740,6 +918,8 @@ function BoardList({
     loading,
     joining,
     selectedBoardId,
+    currentUserName,
+    privateChatProfilesByUserName,
     onJoinBoard,
 }: BoardListProps) {
     const styles = useBoardSelectionStyles();
@@ -767,6 +947,8 @@ function BoardList({
                             board={board}
                             joining={joining}
                             selectedBoardId={selectedBoardId}
+                            currentUserName={currentUserName}
+                            privateChatProfilesByUserName={privateChatProfilesByUserName}
                             onJoinBoard={onJoinBoard}
                         />
                     ))}
@@ -780,6 +962,8 @@ type BoardRowProps = {
     board: MessageBoard;
     joining: boolean;
     selectedBoardId: number | null;
+    currentUserName?: string | null;
+    privateChatProfilesByUserName: PublicProfileByUserName;
     onJoinBoard: (boardId: number) => void;
 };
 
@@ -787,23 +971,40 @@ function BoardRow({
     board,
     joining,
     selectedBoardId,
+    currentUserName,
+    privateChatProfilesByUserName,
     onJoinBoard,
 }: BoardRowProps) {
     const theme = useTheme();
     const styles = useBoardSelectionStyles();
     const isJoiningBoard = joining && selectedBoardId === board.boardId;
+    const privateChatUserName = getOtherPrivateUserChatUserName(board.boardName, currentUserName);
+    const privateChatProfile = privateChatUserName
+        ? privateChatProfilesByUserName[getProfileCacheKey(privateChatUserName)]
+        : null;
+    const displayBoardName = privateChatUserName
+        ? formatPrivateUserChatParticipantLabel({
+            userName: privateChatUserName,
+            displayName: privateChatProfile?.displayName,
+        })
+        : board.boardName;
+    const boardTypeLabel = privateChatUserName
+        ? 'Direct'
+        : board.visibleToPublic
+            ? 'Public'
+            : 'Private';
 
     return (
         <ThemedView style={styles.boardRow}>
             <ThemedView style={styles.boardInfo}>
                 <ThemedText type="subtitle" style={styles.boardName} numberOfLines={1}>
-                    {board.boardName}
+                    {displayBoardName}
                 </ThemedText>
 
                 <ThemedView style={styles.boardMeta}>
                     <ThemedView style={styles.boardBadge}>
                         <ThemedText style={styles.badgeText}>
-                            {board.visibleToPublic ? 'Public' : 'Private'}
+                            {boardTypeLabel}
                         </ThemedText>
                     </ThemedView>
                 </ThemedView>
@@ -849,6 +1050,23 @@ function ErrorBanner({ message }: ErrorBannerProps) {
             <ThemedText style={styles.errorText}>{message}</ThemedText>
         </ThemedView>
     );
+}
+
+function getPrivateChatUserNamesFromBoards(
+    boards: MessageBoard[],
+    currentUserName?: string | null
+): string[] {
+    const userNames = new Map<string, string>();
+
+    for (const board of boards) {
+        const otherUserName = getOtherPrivateUserChatUserName(board.boardName, currentUserName);
+
+        if (otherUserName) {
+            userNames.set(getProfileCacheKey(otherUserName), otherUserName);
+        }
+    }
+
+    return Array.from(userNames.values());
 }
 
 function useBoardSelectionStyles() {
@@ -1213,6 +1431,14 @@ function createBoardSelectionStyles(theme: AppTheme) {
             color: theme.textSecondary,
             marginTop: Spacing.one,
             fontStyle: 'italic',
+        },
+
+        profileChatButton: {
+            alignSelf: 'flex-start',
+            minHeight: 40,
+            paddingHorizontal: Spacing.three,
+            paddingVertical: Spacing.two,
+            marginTop: Spacing.two,
         },
 
         modalInput: {

@@ -26,7 +26,7 @@ export async function createMessageBoard(
     visibleToPublic: boolean,
     passwordProtected: boolean,
     password: string
-) {
+): Promise<MessageBoard> {
 
     const apiUrlAddress = await apiUrl(`/message-boards`);
     

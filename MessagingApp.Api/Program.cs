@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+var useForwardedHeaders = builder.Configuration.GetValue("BetaServer:UseForwardedHeaders", false);
+var useHttpsRedirection = builder.Configuration.GetValue("BetaServer:UseHttpsRedirection", true);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -26,6 +29,16 @@ builder.Services.AddSingleton<HttpClient>();
 builder.Services.AddSingleton<IExpoPushNotificationClient, ExpoPushNotificationClient>();
 builder.Services.AddSingleton<IPushNotificationServices, PushNotificationServices>();
 
+if (useForwardedHeaders)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -47,6 +60,11 @@ if (imageStorageOptions.ClearStoredImagesOnStartup)
     await imageServices.ClearStoredImagesAsync();
 }
 
+if (useForwardedHeaders)
+{
+    app.UseForwardedHeaders();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -55,8 +73,19 @@ if (app.Environment.IsDevelopment())
 //    app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (useHttpsRedirection)
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors();
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    service = "MessagingApp.Api",
+    environment = app.Environment.EnvironmentName,
+    timestamp = DateTimeOffset.UtcNow
+}));
 app.MapControllers();
 
 app.Run();

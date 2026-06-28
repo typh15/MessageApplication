@@ -143,17 +143,27 @@ The existing helper scripts are:
 
 ```bash
 Build_Run_Api.bat
+Run_Api_Beta_Funnel.bat
+Stop_Api_Beta_Funnel.bat
 Run_Client_Test.bat
 Build_Client.bat
 ```
 
 - `Build_Run_Api.bat` builds and runs the API.
+- `Run_Api_Beta_Funnel.bat` starts the API in the `Beta` environment and configures Tailscale Funnel for port `5121`.
+- `Stop_Api_Beta_Funnel.bat` stops the hidden beta API runner and can reset Funnel with `-ResetFunnel`.
 - `Run_Client_Test.bat` sets `REACT_NATIVE_PACKAGER_HOSTNAME=100.90.53.59` and starts Expo with a cleared cache.
 - `Build_Client.bat` runs an EAS Android preview build.
 
 ## Network Configuration
 
 The API and client both use hardcoded development host values right now.
+
+Beta API endpoint:
+
+- Public Funnel URL: `https://desktop-ke30sl9.tail915de.ts.net`
+- Local beta bind URL: `http://127.0.0.1:5121`
+- Runbook: `docs/tailscale-funnel-beta.md`
 
 API launch settings:
 
@@ -374,6 +384,12 @@ Start the API:
 ```bash
 cd MessagingApp.Api
 dotnet run
+```
+
+Start the beta API through Tailscale Funnel:
+
+```bash
+Run_Api_Beta_Funnel.bat
 ```
 
 Start the Expo client:

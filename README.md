@@ -1,109 +1,107 @@
 # Messaging App
 
-A full-stack message board application with an ASP.NET Core API and an Expo/React Native client. Users can register a session, create and join boards, request access to private boards, invite other users, manage a lightweight profile, and exchange text or image messages through a polling-based chat UI.
+A full-stack message board app with an ASP.NET Core API and an Expo/React Native client. Users can register or log in with a username and password, create public or private boards, join or request access to boards, invite other users, manage a lightweight profile, exchange text and image messages, and register devices for Expo push notifications.
 
-This project is still development-focused. Most application state is stored in singleton, in-memory repositories, so users, accounts, boards, memberships, requests, invites, and messages reset when the API restarts. Uploaded images are written under `MessagingApp.Api/App_Data/images`, but that folder is cleared when the API starts as the in-memory repository has the metadata needed to reference the saved images.
+The project is still development-oriented, but the default backend storage is now SQLite. The original in-memory repositories remain available behind configuration switches for debugging and comparison.
 
 ## Project Structure
 
 ```text
-MessagingApp/
+MessageApplication/
 |-- MessagingApp.Api/                       ASP.NET Core backend
-|   |-- Controllers/                        Registration, users, boards, membership, messages
+|   |-- Controllers/                        Registration, active users, boards, membership, messages
 |   |-- Models/                             Active users, boards, messages, message types
-|   |-- Repositories/                       In-memory repositories
+|   |-- Persistence/                        EF Core, SQLite startup, repository selection
+|   |-- Repositories/                       Board and active-user memory/SQL repositories
 |   |-- Requests/                           API request DTOs
 |   |-- Responses/                          API response DTOs
-|   |-- Services/                           Chat and board business logic
+|   |-- Services/                           Chat and board business rules
 |   |-- Tools/
-|   |   |-- AccountPlugin/                  User account/profile endpoints and storage
-|   |   `-- ImagePlugin/                    Image upload, metadata, and file serving
-|   `-- Program.cs                          Dependency injection, CORS, controllers
+|   |   |-- AccountPlugin/                  Account/profile models, endpoints, repositories
+|   |   |-- ImagePlugin/                    Image upload, metadata, storage, serving
+|   |   `-- PushNotificationsPlugin/        Expo push subscription storage and sending
+|   |-- appsettings*.json                   Runtime, persistence, beta server config
+|   `-- Program.cs                          Service registration and HTTP pipeline
 |
 |-- MessagingAppClient/                     Expo / React Native frontend
 |   |-- src/app/                            Expo Router screens
-|   |-- src/APIHandlers/                    API client functions grouped by domain
-|   |-- src/hooks/API/                      Polling hooks for boards, messages, requests
-|   |-- src/session/                        AsyncStorage-backed session helpers
+|   |-- src/APIHandlers/                    API client modules grouped by domain
 |   |-- src/components/                     Shared UI and message components
-|   |-- src/constants/                      Theme constants
-|   `-- assets/                             Images and Expo assets
+|   |-- src/constants/                      Theme and layout constants
+|   |-- src/hooks/                          Session, polling, and API hooks
+|   |-- src/plugins/push-notifications/     Expo notification registration
+|   |-- src/session/                        AsyncStorage session persistence
+|   |-- src/utils/                          Image upload and private chat helpers
+|   `-- assets/                             App images and Expo assets
 |
-|-- Build_Client.bat                        Runs an EAS Android preview build
-|-- Build_Run_Api.bat                       Builds and starts the API
-`-- Run_Client_Test.bat                     Starts Expo with the configured host name
+|-- docs/                                   Persistence, beta funnel, and planning notes
+|-- Build_Run_Api.bat                       Build and start the API
+|-- Run_Api_Beta_Funnel.bat                 Start the beta API through Tailscale Funnel
+|-- Stop_Api_Beta_Funnel.bat                Stop the beta API/Funnel helper
+|-- Run_Client_Test.bat                     Start Expo with a configured packager host
+`-- Build_Client.bat                        Run an EAS Android preview build
 ```
 
 ## Current Features
 
-- User registration through `/registration`, which creates both an active user and account record.
-- Optional anonymous active-user creation through `/anonymous-users`.
-- Saved client sessions using `AsyncStorage` keys for `uniqueid` and `username`.
-- Startup session validation before entering the board list.
+- Username/password registration and login.
+- Saved client sessions using AsyncStorage.
+- Startup session validation before opening the board list.
+- Configurable API server URL from the sign-in screen.
 - Public and private message board creation.
 - Optional board password protection.
-- Unique board IDs for requesting access to private boards.
-- Password-based private-board joining by unique board ID.
-- Board list polling every 5 seconds.
-- Board detail and join-request polling every 5 seconds.
-- Message polling every 500 ms.
-- Text and image message sending with server timestamps and board-local/global message IDs.
-- Image upload, image preview, and image rendering in chat.
-- Message deletion endpoint that only allows the original sender to delete their message.
-- Join-request approval workflow for current board members.
-- Board invites from the chat screen.
-- Invite accept/decline flows from the account screen.
-- Account screen for display name, public blurb, profile image, invites, and sign out.
+- Unique board IDs for private-board search and joining by code.
+- Board list, board detail, join-request, and message polling.
+- Text messages and image messages with optional captions.
+- Image upload, metadata lookup, owner lookup, download, and deletion.
+- Profile data with display name, public blurb, and avatar image.
+- Public profile lookup by username.
+- Join-request approval and denial workflows.
+- Board invitations with accept/reject flows.
+- Message deletion by original sender.
+- Expo push notification subscription registration and storage.
 - Android, iOS, and web support through Expo.
-
-## Functional But Needs More Testing
-
-- Invite creation, invite accept/decline, and password-based board joining are wired into the client and API, but still need broader manual testing across Android, iOS, and web.
-- Join-request approval is backed by the API. Denying a join request currently dismisses it in the client view; there is not a matching backend endpoint that permanently rejects/removes the request.
-- The Server URL field on the registration screen saves a value, but active API calls use the hardcoded client config value.
-- There are no automated tests yet for the newer account, invite, image upload, or image-message flows.
+- SQLite-backed persistence by default for active users, accounts, boards, messages, images, and push notification subscriptions.
 
 ## Tech Stack
 
 ### Backend
 
-- ASP.NET Core targeting `.NET 9`
+- ASP.NET Core targeting .NET 9
 - C#
 - Controller-based REST API
-- Dependency injection with singleton services and repositories
-- DTOs for requests and responses
-- In-memory repositories for development storage, with SQLite-backed repository implementations being added in stages
-- File-backed image payload storage that is cleared at API startup
+- EF Core with SQLite
+- Repository interfaces with selectable SQL or in-memory implementations
+- File-backed image payload storage with SQL-backed image metadata
+- Expo push notification client service
 - CORS configured to allow any origin, method, and header
 
 ### Frontend
 
 - Expo `~56.0.5`
+- Expo Router `~56.2.7`
 - React Native `0.85.3`
 - React `19.2.3`
 - TypeScript `~6.0.3`
-- Expo Router
-- Expo Image
-- Expo Image Picker
-- Expo Symbols
-- React Native StyleSheet styling
+- Expo Image, Image Picker, Notifications, Symbols, and UI
 - `@react-native-async-storage/async-storage`
 - Domain-specific API handler modules
-- Reusable polling hook for refresh-based data loading
+- Polling hooks for refresh-based data loading
 - EAS build configuration for Android/internal builds
 
 ## Prerequisites
 
 - .NET 9 SDK
 - Node.js and npm
-- Expo Go, an emulator, or a browser for running the client
-- EAS CLI only if you want to use `Build_Client.bat` or create EAS builds
+- Expo Go, an emulator, or a browser for the client
+- EAS CLI only for EAS builds
+- Tailscale CLI only for the beta Funnel scripts
 
 ## Setup
 
 Install and build the API:
 
-```bash
+```powershell
 cd MessagingApp.Api
 dotnet restore
 dotnet build
@@ -111,7 +109,7 @@ dotnet build
 
 Install the client dependencies:
 
-```bash
+```powershell
 cd MessagingAppClient
 npm install
 ```
@@ -120,14 +118,16 @@ npm install
 
 Start the API:
 
-```bash
+```powershell
 cd MessagingApp.Api
 dotnet run
 ```
 
+By default, the API uses the configured launch profile and SQLite database under `MessagingApp.Api/App_Data`.
+
 Start the client:
 
-```bash
+```powershell
 cd MessagingAppClient
 npm start
 ```
@@ -139,9 +139,11 @@ Then choose a target from Expo:
 - Press `w` for web.
 - Scan the QR code with Expo Go for a physical device.
 
-The existing helper scripts are:
+Before logging in, make sure the sign-in screen's Server URL points to the running API. For physical devices, the phone must be able to reach that API address over the network.
 
-```bash
+## Helper Scripts
+
+```powershell
 Build_Run_Api.bat
 Run_Api_Beta_Funnel.bat
 Stop_Api_Beta_Funnel.bat
@@ -150,67 +152,149 @@ Build_Client.bat
 ```
 
 - `Build_Run_Api.bat` builds and runs the API.
-- `Run_Api_Beta_Funnel.bat` starts the API in the `Beta` environment and configures Tailscale Funnel for port `5121`.
-- `Stop_Api_Beta_Funnel.bat` stops the hidden beta API runner and can reset Funnel with `-ResetFunnel`.
+- `Run_Api_Beta_Funnel.bat` configures Tailscale Funnel and starts the API in the `Beta` environment on `http://127.0.0.1:5121`.
+- `Run_Api_Beta_Funnel.ps1` can be run directly with or without its optional `-ConfigureFunnel` switch.
+- `Stop_Api_Beta_Funnel.bat` stops the hidden beta API runner and can reset Funnel through `-ResetFunnel`.
 - `Run_Client_Test.bat` sets `REACT_NATIVE_PACKAGER_HOSTNAME=100.90.53.59` and starts Expo with a cleared cache.
 - `Build_Client.bat` runs an EAS Android preview build.
 
-## Network Configuration
+## Configuration
 
-The API and client both use hardcoded development host values right now.
+### API
 
-Beta API endpoint:
+Important API config lives in:
 
-- Public Funnel URL: `https://desktop-ke30sl9.tail915de.ts.net`
-- Local beta bind URL: `http://127.0.0.1:5121`
-- Runbook: `docs/tailscale-funnel-beta.md`
-
-API launch settings:
-
+- `MessagingApp.Api/appsettings.json`
+- `MessagingApp.Api/appsettings.Development.json`
+- `MessagingApp.Api/appsettings.Beta.json`
 - `MessagingApp.Api/Properties/launchSettings.json`
-- Current HTTP URL: `http://100.90.53.59:5121`
-- Current HTTPS URL: `https://100.90.53.59:7060`
 
-Client API config:
+Current default storage settings:
 
-- `MessagingAppClient/src/APIHandlers/Helpers/config.ts`
-- Current client URL: `http://100.93.130.74:5121`
+```json
+{
+  "ConnectionStrings": {
+    "MessagingAppData": "Data Source=App_Data/messagingapp.sqlite"
+  },
+  "Persistence": {
+    "Provider": "Sqlite",
+    "InitializeDatabaseOnStartup": true,
+    "FailStartupOnInitializationError": true
+  },
+  "RepositoryStorage": {
+    "ActiveUsers": "Sqlite",
+    "MessageBoards": "Sqlite",
+    "UserAccounts": "Sqlite",
+    "Images": "Sqlite",
+    "PushNotifications": "Sqlite"
+  },
+  "ImageStorage": {
+    "ClearStoredImagesOnStartup": false
+  }
+}
+```
 
-Before running the full app, make sure the client URL points to the same reachable host and port as the API. For physical-device testing, the phone running Expo Go must be able to reach that API address over the local network.
+Allowed repository storage values are `Sqlite` and `Memory`. If a repository is switched to `Memory`, that area of app state resets when the API process restarts.
+
+The API also exposes:
+
+```text
+GET /health
+```
+
+The health response includes `status`, `service`, `environment`, and a UTC timestamp.
+
+### Client
+
+Client API host configuration lives in:
+
+```text
+MessagingAppClient/src/APIHandlers/Helpers/config.ts
+```
+
+The default server URL is currently:
+
+```text
+http://100.90.53.59:5121
+```
+
+The sign-in screen can save a different Server URL in AsyncStorage. Most API calls resolve their URL through the shared config helper.
+
+### Beta Funnel
+
+The beta API runbook is in:
+
+```text
+docs/tailscale-funnel-beta.md
+```
+
+Current public Funnel endpoint:
+
+```text
+https://desktop-ke30sl9.tail915de.ts.net
+```
+
+Current local beta bind URL:
+
+```text
+http://127.0.0.1:5121
+```
+
+## Persistence Notes
+
+SQLite schema creation happens during API startup. If the database file is missing, the app creates it. If a partial schema exists, startup fails instead of silently continuing with a confusing database shape.
+
+Runtime data that should not be committed:
+
+- SQLite files under `MessagingApp.Api/App_Data`
+- Uploaded image files under `MessagingApp.Api/App_Data/images`
+- Logs and other generated local files
+
+The in-memory repositories are still useful when comparing behavior during storage changes. See `docs/sql-persistence-reference.md` for the full persistence design and debugging checklist.
 
 ## Client Flow
 
 1. `src/app/index.tsx` calls `validateCurrentSession()`.
 2. If the saved session is valid, the app opens `Homescreen-Board-Select-Page`.
 3. If validation fails, the saved session is cleared and the app opens `Login-Registration-Page`.
-4. Registration calls `/registration` and stores the returned `uniqueId` and username.
-5. The board screen uses `useBoards()` to poll available public boards and boards the user belongs to.
-6. Users can create boards, join visible boards, join protected boards by unique board ID and password, or request private-board access by unique board ID.
-7. The board screen links to `Account-Page`, where users can edit profile data, upload a profile image, view invites, accept/decline invites, and sign out.
-8. `Chat-Page` uses polling hooks for messages, board details, and join requests.
-9. Chat supports text messages, image messages with optional captions, board member invites, and a join-request button when pending requests exist.
-10. `Board-Join-Requests-Page` lets board members approve pending requests.
+4. Registration and login call `/registration` or `/login`, then save the returned `uniqueId` and username.
+5. Push notification registration is queued after a successful registration or login when notifications are available.
+6. The board screen polls visible public boards and boards the user belongs to.
+7. Users can create boards, join visible boards, join protected boards by unique board ID/password, or request access to private boards.
+8. The account screen lets users edit profile data, upload an avatar, view invites, accept/reject invites, and sign out.
+9. The chat screen polls messages, board details, and join requests.
+10. Chat supports text messages, image messages with captions, board member invites, and join-request management.
 
 ## API Reference
 
-### Registration and Active Users
+### Health
 
 | Method | Route | Description |
 | --- | --- | --- |
-| `POST` | `/registration` | Create a user account and active user together. |
+| `GET` | `/health` | Return basic API health and environment metadata. |
+
+### Registration, Login, and Active Users
+
+| Method | Route | Description |
+| --- | --- | --- |
+| `POST` | `/registration` | Create a user account and active user session. |
+| `POST` | `/login` | Authenticate a user and create/refresh an active user session. |
 | `POST` | `/anonymous-users` | Create an active user without account data. |
 | `GET` | `/active-usernames` | Return all active usernames. |
-| `GET` | `/active-users/validate?uniqueId={uniqueId}` | Return whether a user ID exists in the current API process. |
+| `GET` | `/active-users/validate?uniqueId={uniqueId}` | Return whether a user ID is active. |
+| `GET` | `/public-profiles` | Return public profile summaries. |
+| `GET` | `/public-profiles/{userName}` | Return one public profile by username. |
 
-Registration body:
+Registration and login body:
 
 ```json
 {
-  "UserName": "alex"
+  "UserName": "alex",
+  "Password": "password-at-least-8-chars"
 }
 ```
 
-Registration response:
+Registration and login response:
 
 ```json
 {
@@ -276,6 +360,7 @@ Board responses include:
 | `POST` | `/message-boards/search` | Request access by unique board ID. |
 | `GET` | `/message-boards/{boardId}/requests?memberUniqueId={uniqueId}` | Return pending requests for a board member. |
 | `POST` | `/message-boards/{boardId}/approvals?memberUniqueId={uniqueId}&userName={userName}` | Approve a pending request. |
+| `POST` | `/message-boards/{boardId}/denials?memberUniqueId={uniqueId}&userName={userName}` | Deny a pending request. |
 | `POST` | `/message-boards/{boardId}/invites?memberUniqueId={uniqueId}&inviteUserName={userName}` | Invite an active user to a board. |
 | `GET` | `/active-users/{uniqueId}/invites` | Return board invites for a user. |
 | `POST` | `/message-boards/{boardId}/invites/accept?uniqueId={uniqueId}` | Accept an invite and join the board. |
@@ -291,13 +376,23 @@ Join body:
 }
 ```
 
-Request access body:
+Search/request body:
 
 ```json
 {
   "UniqueBoardId": "ABC12345",
   "UniqueId": "user-guid",
   "Password": "optional-password"
+}
+```
+
+Join-by-code body:
+
+```json
+{
+  "UniqueBoardId": "ABC12345",
+  "UniqueId": "user-guid",
+  "Password": "board-password"
 }
 ```
 
@@ -354,72 +449,91 @@ Image uploads require form fields:
 
 Images are limited to 5 MB and supported content types are JPEG, PNG, and WebP.
 
-## Development Notes
+### Push Notifications
 
-- The API uses singleton repositories, so most state lives only for the current process.
-- The API is staged to initialize a local SQLite database from `ConnectionStrings:MessagingAppData`; migrated repositories can be switched between SQL and memory through `RepositoryStorage`.
-- When image metadata uses SQL, `ImageStorage:ClearStoredImagesOnStartup` should stay `false` so persisted metadata still matches files on disk.
-- SQL-backed push notifications preserve one current owner per Expo push token.
-- SQL-backed active users rehydrate board membership, request, and invite lists from join tables.
-- SQL-backed message boards store board metadata, messages, members, requests, and invites in normalized tables.
-- Uploaded image files are deleted on API startup when `ImageStorage:ClearStoredImagesOnStartup` is `true`.
-- There is no persistent database, authentication provider, authorization policy, or production identity system yet.
-- Public board names must be unique, case-insensitively. Private board names are not checked by the same rule.
-- Private boards that are not password-protected cannot be joined directly by board ID; users must request access.
-- Image messages require the referenced image to belong to the sender.
-- The client polls instead of using WebSockets or SignalR.
-- The root project does not currently include a project-wide license file. `MessagingAppClient/LICENSE` is the Expo template license.
+| Method | Route | Description |
+| --- | --- | --- |
+| `POST` | `/push-notifications/subscriptions` | Create or update an Expo push token subscription. |
+| `DELETE` | `/push-notifications/subscriptions?uniqueId={uniqueId}&expoPushToken={token}` | Delete a saved subscription. |
+
+Subscription body:
+
+```json
+{
+  "UniqueId": "user-guid",
+  "ExpoPushToken": "ExponentPushToken[...]",
+  "DeviceId": "device-or-session-id",
+  "Platform": "android"
+}
+```
 
 ## Useful Commands
 
 Build the API:
 
-```bash
+```powershell
 cd MessagingApp.Api
 dotnet build
 ```
 
 Start the API:
 
-```bash
+```powershell
 cd MessagingApp.Api
 dotnet run
 ```
 
-Start the beta API through Tailscale Funnel:
+Start the beta API:
 
-```bash
-Run_Api_Beta_Funnel.bat
+```powershell
+.\Run_Api_Beta_Funnel.bat
 ```
 
 Start the Expo client:
 
-```bash
+```powershell
 cd MessagingAppClient
 npm start
 ```
 
 Run the client linter:
 
-```bash
+```powershell
 cd MessagingAppClient
 npm run lint
 ```
 
 Run an Android preview build through EAS:
 
-```bash
+```powershell
 cd MessagingAppClient
 eas build --platform android --profile preview
 ```
 
+## Documentation
+
+- `docs/sql-persistence-reference.md` explains the repository storage switches, EF Core schema, and migration/debugging approach.
+- `docs/sql-persistence-plan.md` tracks persistence migration planning.
+- `docs/tailscale-funnel-beta.md` documents the beta Funnel endpoint and operations.
+- `docs/github-issue-workplan.md` captures implementation work planning.
+
+## Known Gaps and Risks
+
+- There are no automated tests yet for the API service/controller rules or the client API flows.
+- The client uses polling instead of WebSockets or SignalR.
+- Authentication is local username/password storage, not a production identity provider.
+- Authorization is mostly service-level ownership and membership checks, not a full policy system.
+- The API currently allows any CORS origin.
+- SQLite is convenient for development and a small beta, but deployment should include backup and file-location planning.
+- Uploaded image bytes live on disk, so image backups must include both the SQLite database and image folder.
+- Push notification sending depends on Expo push tokens and supported client environments.
+
 ## Roadmap
 
-- Replace in-memory repositories with persistent storage.
-- Move API host configuration out of hardcoded constants.
-- Add real authentication and authorization.
-- Add real-time delivery with SignalR or another push mechanism. Thinking web hooks, honestly.
-- Harden invite, profile, and protected-board flows with broader manual testing.
-- Persist uploaded images instead of clearing image storage at API startup(Metadata is not persistent so I don't want a buildup of lost images while testing).
+- Add focused automated tests for registration/login, boards, membership, messages, image upload, and push subscription flows.
+- Move API host configuration fully out of hardcoded defaults for release builds.
+- Add production-grade authentication and authorization.
+- Add real-time message delivery with SignalR or another push mechanism.
 - Improve board moderation and message deletion behavior.
-- Add automated tests for service rules, controller behavior, and client API flows.
+- Add database backup guidance and deployment configuration examples.
+- Continue hardening Android, iOS, and web behavior for invite, profile, image, and protected-board flows.

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SERVER_URL_KEY = 'serverUrl';
 
-export const DEFAULT_SERVER_URL = 'http://100.90.53.59:5121';
+export const DEFAULT_SERVER_URL = 'https://desktop-ke30sl9.tail915de.ts.net';
 
 let currentServerUrl = DEFAULT_SERVER_URL;
 

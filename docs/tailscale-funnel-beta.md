@@ -35,9 +35,12 @@ From the repository root:
 The script:
 
 - starts Tailscale Funnel in the background for port `5121`
+- exits early if the beta API is already healthy
 - runs the API with `ASPNETCORE_ENVIRONMENT=Beta`
 - binds Kestrel to `http://127.0.0.1:5121`
 - restarts the API after a crash until the terminal is closed
+
+If you need to rebuild after code changes, stop the running beta API first.
 
 ## Stop the beta server
 

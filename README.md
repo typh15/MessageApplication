@@ -1,13 +1,36 @@
-# Messaging App
+# Message Board Beta
 
-A full-stack message board app with an ASP.NET Core API and an Expo/React Native client. Users can register or log in with a username and password, create public or private boards, join or request access to boards, invite other users, manage a lightweight profile, exchange text and image messages, and register devices for Expo push notifications.
+Message Board is a No Future Studio beta messaging app with an ASP.NET Core API and an Expo/React Native client. Users can register or log in with a username and password, create public or private boards, join or request access to boards, invite other users, manage a lightweight profile, exchange text and image messages, start one-to-one private chats, and register devices for Expo push notifications.
 
-The project is still development-oriented, but the default backend storage is now SQLite. The original in-memory repositories remain available behind configuration switches for debugging and comparison.
+The project is in active beta. The web app is live through Cloudflare at `https://messageboard.nofuturestudio.com`, the Android preview build is being shared privately through Google Drive, and the current beta API endpoint is `https://desktop-ke30sl9.tail915de.ts.net`.
+
+The default backend storage is SQLite. The original in-memory repositories remain available behind configuration switches for debugging and comparison.
+
+## Beta Availability
+
+| Surface | Status | Notes |
+| --- | --- | --- |
+| Web app | Live beta | Hosted through Cloudflare at `https://messageboard.nofuturestudio.com`. |
+| Android | Preview beta | Built with EAS preview/internal distribution and currently shared privately through Google Drive. |
+| API | Beta service | Current default API endpoint is `https://desktop-ke30sl9.tail915de.ts.net`. |
+| iOS | Development-capable | Expo/iOS support exists, but the active beta distribution path is web plus Android preview. |
+
+The web app and the API are separate deployments. Cloudflare serves the static Expo web build; the client then calls the configured ASP.NET Core API. The sign-in screen includes a Server URL field, and the default value points at the current beta API.
+
+## For Beta Testers
+
+1. Open `https://messageboard.nofuturestudio.com`.
+2. Register with a username and password, or log in with an existing beta account.
+3. Leave the Server URL as the default unless you were asked to test a different backend.
+4. Create or join a board and start messaging.
+5. Android testers can install the preview build from the private Google Drive link shared by No Future Studio.
+
+Useful feedback includes the platform, browser or device, username, board name or board ID, what you expected, what happened, and the approximate time of the issue.
 
 ## Project Structure
 
 ```text
-MessageApplication/
+MessagingApp/
 |-- MessagingApp.Api/                       ASP.NET Core backend
 |   |-- Controllers/                        Registration, active users, boards, membership, messages
 |   |-- Models/                             Active users, boards, messages, message types
@@ -58,9 +81,13 @@ MessageApplication/
 - Public profile lookup by username.
 - Join-request approval and denial workflows.
 - Board invitations with accept/reject flows.
+- Board favorites and leave-board actions.
+- One-to-one private chats built on hidden private boards.
+- Board member browsing and member-to-member chat entry points.
 - Message deletion by original sender.
 - Expo push notification subscription registration and storage.
 - Android, iOS, and web support through Expo.
+- Static web export for Cloudflare or another static host.
 - SQLite-backed persistence by default for active users, accounts, boards, messages, images, and push notification subscriptions.
 
 ## Tech Stack
@@ -141,6 +168,12 @@ Then choose a target from Expo:
 
 Before logging in, make sure the sign-in screen's Server URL points to the running API. For physical devices, the phone must be able to reach that API address over the network.
 
+For normal beta testing, leave the Server URL set to:
+
+```text
+https://desktop-ke30sl9.tail915de.ts.net
+```
+
 ## Helper Scripts
 
 ```powershell
@@ -215,10 +248,16 @@ MessagingAppClient/src/APIHandlers/Helpers/config.ts
 The default server URL is currently:
 
 ```text
-http://100.90.53.59:5121
+https://desktop-ke30sl9.tail915de.ts.net
 ```
 
 The sign-in screen can save a different Server URL in AsyncStorage. Most API calls resolve their URL through the shared config helper.
+
+Current live web beta:
+
+```text
+https://messageboard.nofuturestudio.com
+```
 
 ### Beta Funnel
 
@@ -503,6 +542,22 @@ cd MessagingAppClient
 npm run lint
 ```
 
+Build and preview the Expo web client static artifact:
+
+```powershell
+cd MessagingAppClient
+npm run build:web
+npm run serve:web
+```
+
+Copy or deploy the generated `MessagingAppClient/web-build` contents to a static web host.
+
+The live beta web app is currently hosted through Cloudflare at:
+
+```text
+https://messageboard.nofuturestudio.com
+```
+
 Run an Android preview build through EAS:
 
 ```powershell
@@ -510,15 +565,20 @@ cd MessagingAppClient
 eas build --platform android --profile preview
 ```
 
+The active Android beta distribution process is manual private sharing through Google Drive, not a public Play Store release.
+
 ## Documentation
 
+- `MessagingAppClient/README.md` covers the Expo client specifically.
 - `docs/sql-persistence-reference.md` explains the repository storage switches, EF Core schema, and migration/debugging approach.
 - `docs/sql-persistence-plan.md` tracks persistence migration planning.
 - `docs/tailscale-funnel-beta.md` documents the beta Funnel endpoint and operations.
+- `docs/expo-web-client-server.md` walks through building a portable Expo web artifact and hosting it on another computer.
 - `docs/github-issue-workplan.md` captures implementation work planning.
 
 ## Known Gaps and Risks
 
+- The beta is intended for small invited testing groups, not general public production use.
 - There are no automated tests yet for the API service/controller rules or the client API flows.
 - The client uses polling instead of WebSockets or SignalR.
 - Authentication is local username/password storage, not a production identity provider.
@@ -527,6 +587,7 @@ eas build --platform android --profile preview
 - SQLite is convenient for development and a small beta, but deployment should include backup and file-location planning.
 - Uploaded image bytes live on disk, so image backups must include both the SQLite database and image folder.
 - Push notification sending depends on Expo push tokens and supported client environments.
+- Android preview builds are manually shared and are not Play Store releases.
 
 ## Roadmap
 
@@ -536,4 +597,4 @@ eas build --platform android --profile preview
 - Add real-time message delivery with SignalR or another push mechanism.
 - Improve board moderation and message deletion behavior.
 - Add database backup guidance and deployment configuration examples.
-- Continue hardening Android, iOS, and web behavior for invite, profile, image, and protected-board flows.
+- Continue hardening Android, iOS, and web behavior for invite, profile, image, protected-board, and private-chat flows.

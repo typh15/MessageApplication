@@ -4,13 +4,23 @@ import { Platform } from 'react-native';
 import { apiUrl } from '@/APIHandlers/Helpers/config';
 import { getSession, type Session } from '@/session/session-storage';
 
-import { getPushNotificationAvailability } from './push-notification-mode';
+import {
+    getPushNotificationAvailability,
+    getPushNotificationMode,
+    getPushNotificationRuntimeDetails,
+} from './push-notification-mode';
 
 export const PUSH_NOTIFICATION_CHANNEL_ID = 'messages';
 
 export type PushNotificationRegistrationResult =
     | { status: 'registered'; expoPushToken: string }
     | { status: 'skipped'; reason: string };
+
+export type PushNotificationDiagnosticsResult = {
+    status: 'registered' | 'skipped' | 'failed';
+    message: string;
+    details: string[];
+};
 
 type NotificationsModule = typeof import('expo-notifications');
 type PushTokenSubscription = {
@@ -58,6 +68,155 @@ export async function syncPushNotificationRegistration(
     await upsertPushNotificationSubscription(activeSession, expoPushToken);
 
     return { status: 'registered', expoPushToken };
+}
+
+export async function diagnosePushNotificationRegistration(
+    session?: Session | null
+): Promise<PushNotificationDiagnosticsResult> {
+    const details: string[] = [
+        `Mode: ${getPushNotificationMode()}`,
+        ...getPushNotificationRuntimeDetails(),
+    ];
+    const activeSession = session ?? await getSession();
+
+    if (!activeSession) {
+        return {
+            status: 'skipped',
+            message: 'No saved session was found.',
+            details,
+        };
+    }
+
+    details.push(`User: ${activeSession.userName}`);
+
+    const availability = getPushNotificationAvailability();
+    if (!availability.enabled) {
+        return {
+            status: 'skipped',
+            message: availability.reason ?? 'Push notifications are not available.',
+            details,
+        };
+    }
+
+    details.push('Availability: enabled');
+
+    const Notifications = await tryStep(
+        details,
+        'Notification module',
+        () => loadPushNotificationsModuleAsync()
+    );
+
+    if (!Notifications) {
+        return {
+            status: 'failed',
+            message: 'The notification module could not be loaded.',
+            details,
+        };
+    }
+
+    const channelConfigured = await tryStep(
+        details,
+        'Android channel',
+        async () => {
+            await configureNotificationChannelAsync(Notifications);
+            return true;
+        }
+    );
+
+    if (!channelConfigured) {
+        return {
+            status: 'failed',
+            message: 'Android notification channel setup failed.',
+            details,
+        };
+    }
+
+    const permission = await tryStep(
+        details,
+        'Permission',
+        () => getNotificationPermissionAsync(Notifications),
+        (result) => result.granted ? 'granted' : 'not granted'
+    );
+
+    if (!permission?.granted) {
+        return {
+            status: 'skipped',
+            message: 'Notification permission was not granted.',
+            details,
+        };
+    }
+
+    const projectId = trySyncStep(
+        details,
+        'Expo project ID',
+        getExpoProjectId,
+        (result) => result
+    );
+
+    if (!projectId) {
+        return {
+            status: 'failed',
+            message: 'Expo project ID is missing.',
+            details,
+        };
+    }
+
+    const expoPushToken = await tryStep(
+        details,
+        'Expo push token',
+        async () => (await Notifications.getExpoPushTokenAsync({ projectId })).data,
+        maskPushToken
+    );
+
+    if (!expoPushToken) {
+        return {
+            status: 'failed',
+            message: 'Expo push token could not be created.',
+            details,
+        };
+    }
+
+    const subscriptionApiUrl = await tryStep(
+        details,
+        'Backend endpoint',
+        () => apiUrl('/push-notifications/subscriptions'),
+        (result) => result
+    );
+
+    if (!subscriptionApiUrl) {
+        return {
+            status: 'failed',
+            message: 'The backend endpoint URL could not be created.',
+            details,
+        };
+    }
+
+    const saved = await tryStep(
+        details,
+        'Backend save',
+        async () => {
+            await upsertPushNotificationSubscription(
+                activeSession,
+                expoPushToken,
+                subscriptionApiUrl
+            );
+            return true;
+        }
+    );
+
+    if (!saved) {
+        return {
+            status: 'failed',
+            message: 'The backend did not save the push token.',
+            details,
+        };
+    }
+
+    return {
+        status: 'registered',
+        message: 'Push notification registration succeeded.',
+        details,
+    };
 }
 
 export function subscribeToPushTokenRefresh(session: Session) {
@@ -139,9 +298,10 @@ async function getNotificationPermissionAsync(Notifications: NotificationsModule
 
 async function upsertPushNotificationSubscription(
     session: Session,
-    expoPushToken: string
+    expoPushToken: string,
+    subscriptionApiUrl?: string
 ) {
-    const apiUrlAddress = await apiUrl('/push-notifications/subscriptions');
+    const apiUrlAddress = subscriptionApiUrl ?? await apiUrl('/push-notifications/subscriptions');
     const response = await fetch(apiUrlAddress, {
         method: 'POST',
         headers: {
@@ -157,7 +317,10 @@ async function upsertPushNotificationSubscription(
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(errorText || 'Failed to save push notification subscription.');
+        throw new Error(
+            errorText ||
+            `Failed to save push notification subscription. Status: ${response.status}`
+        );
     }
 }
 
@@ -182,4 +345,50 @@ function getDeviceId() {
     };
 
     return constants.installationId ?? constants.sessionId;
+}
+
+async function tryStep<T>(
+    details: string[],
+    label: string,
+    action: () => Promise<T>,
+    formatResult: (result: T) => string = () => 'ok'
+): Promise<T | null> {
+    try {
+        const result = await action();
+        details.push(`${label}: ${formatResult(result)}`);
+        return result;
+    }
+    catch (err) {
+        details.push(`${label}: failed - ${getErrorMessage(err)}`);
+        return null;
+    }
+}
+
+function trySyncStep<T>(
+    details: string[],
+    label: string,
+    action: () => T,
+    formatResult: (result: T) => string = () => 'ok'
+): T | null {
+    try {
+        const result = action();
+        details.push(`${label}: ${formatResult(result)}`);
+        return result;
+    }
+    catch (err) {
+        details.push(`${label}: failed - ${getErrorMessage(err)}`);
+        return null;
+    }
+}
+
+function getErrorMessage(err: unknown) {
+    return err instanceof Error ? err.message : String(err);
+}
+
+function maskPushToken(expoPushToken: string) {
+    if (expoPushToken.length <= 32) {
+        return expoPushToken;
+    }
+
+    return `${expoPushToken.slice(0, 24)}...${expoPushToken.slice(-8)}`;
 }

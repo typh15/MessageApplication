@@ -10,6 +10,7 @@ export type PushNotificationAvailability = {
 
 type ExpoExtraWithPushNotifications = {
     pushNotifications?: {
+        diagnostics?: boolean | string;
         mode?: string;
     };
 };
@@ -53,5 +54,37 @@ export function getPushNotificationAvailability(): PushNotificationAvailability 
 }
 
 export function isExpoGo() {
-    return Constants.appOwnership === 'expo' || Constants.expoGoConfig != null;
+    return Constants.appOwnership === 'expo';
+}
+
+export function getPushNotificationRuntimeDetails() {
+    return [
+        `Platform: ${Platform.OS}`,
+        `App ownership: ${Constants.appOwnership ?? 'none'}`,
+        `Execution environment: ${Constants.executionEnvironment ?? 'unknown'}`,
+        `Expo Go config present: ${Constants.expoGoConfig == null ? 'no' : 'yes'}`,
+    ];
+}
+
+export function shouldShowPushNotificationDiagnostics() {
+    const extra = Constants.expoConfig?.extra as ExpoExtraWithPushNotifications | undefined;
+    const configuredDiagnostics = extra?.pushNotifications?.diagnostics;
+
+    if (typeof configuredDiagnostics === 'boolean') {
+        return configuredDiagnostics;
+    }
+
+    if (typeof configuredDiagnostics === 'string') {
+        const normalizedValue = configuredDiagnostics.trim().toLowerCase();
+
+        if (['enabled', 'true', 'on'].includes(normalizedValue)) {
+            return true;
+        }
+
+        if (['disabled', 'false', 'off'].includes(normalizedValue)) {
+            return false;
+        }
+    }
+
+    return __DEV__;
 }

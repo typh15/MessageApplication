@@ -17,6 +17,11 @@ import {
 } from '@/hooks/API/use-public-profiles-by-user-name';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
+import {
+    diagnosePushNotificationRegistration,
+    shouldShowPushNotificationDiagnostics,
+    type PushNotificationDiagnosticsResult,
+} from '@/plugins/push-notifications';
 import { createImageUploadInput, SUPPORTED_IMAGE_TYPES } from '@/utils/image-upload';
 import {
     formatPrivateUserChatParticipantLabel,
@@ -37,6 +42,9 @@ export default function AccountScreen() {
     const [loading, setLoading] = useState(true);
     const [savingAccount, setSavingAccount] = useState(false);
     const [updatingAvatar, setUpdatingAvatar] = useState(false);
+    const [checkingPushNotifications, setCheckingPushNotifications] = useState(false);
+    const [pushDiagnostics, setPushDiagnostics] =
+        useState<PushNotificationDiagnosticsResult | null>(null);
     const [inviteBusyState, setInviteBusyState] = useState<{ boardId: number; action: InviteAction } | null>(null);
     const [error, setError] = useState('');
 
@@ -209,6 +217,34 @@ export default function AccountScreen() {
         router.replace('../Login-Registration-Page');
     };
 
+    const handleCheckPushNotifications = async () => {
+        if (!session) {
+            Alert.alert('Session expired', 'Please log in again before checking notifications.');
+            router.replace('../Login-Registration-Page');
+            return;
+        }
+
+        try {
+            setCheckingPushNotifications(true);
+            setPushDiagnostics(null);
+            setPushDiagnostics(await diagnosePushNotificationRegistration(session));
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error
+                ? err.message
+                : 'Push notification check failed.';
+
+            setPushDiagnostics({
+                status: 'failed',
+                message: errorMessage,
+                details: [errorMessage],
+            });
+        }
+        finally {
+            setCheckingPushNotifications(false);
+        }
+    };
+
     const accountChanged =
         (account?.displayName ?? '') !== displayName.trim() ||
         (account?.publicBlurb ?? '') !== publicBlurb;
@@ -219,6 +255,7 @@ export default function AccountScreen() {
         [invites, session?.userName]
     );
     const privateChatProfilesByUserName = usePublicProfilesByUserName(privateChatInviteUserNames);
+    const showPushNotificationDiagnostics = shouldShowPushNotificationDiagnostics();
 
     return (
         <ScrollView
@@ -240,6 +277,47 @@ export default function AccountScreen() {
             {error ? (
                 <ThemedView style={styles.errorContainer}>
                     <ThemedText style={styles.errorText}>{error}</ThemedText>
+                </ThemedView>
+            ) : null}
+
+            {showPushNotificationDiagnostics ? (
+                <ThemedView style={[styles.section, { borderColor: theme.genericborder }]}>
+                    <ThemedView style={styles.sectionHeader}>
+                        <ThemedText type="subtitle" style={styles.sectionTitle}>Notifications</ThemedText>
+                        <Button
+                            showText={true}
+                            buttonText={checkingPushNotifications ? 'Checking...' : 'Check'}
+                            onPress={handleCheckPushNotifications}
+                            disabled={checkingPushNotifications || sessionLoading}
+                            style={styles.compactButton}
+                            textStyle={styles.compactButtonText}
+                        />
+                    </ThemedView>
+
+                    <ThemedText
+                        style={[
+                            styles.detailText,
+                            pushDiagnostics?.status === 'registered' && styles.successText,
+                            pushDiagnostics?.status === 'skipped' && styles.warningText,
+                            pushDiagnostics?.status === 'failed' && styles.errorText,
+                        ]}
+                    >
+                        {pushDiagnostics?.message ?? 'Not checked'}
+                    </ThemedText>
+
+                    {pushDiagnostics ? (
+                        <ThemedView style={styles.diagnosticList}>
+                            {pushDiagnostics.details.map((detail, index) => (
+                                <ThemedText
+                                    key={`${detail}-${index}`}
+                                    type="code"
+                                    style={styles.diagnosticLine}
+                                >
+                                    {detail}
+                                </ThemedText>
+                            ))}
+                        </ThemedView>
+                    ) : null}
                 </ThemedView>
             ) : null}
 
@@ -583,5 +661,19 @@ const styles = StyleSheet.create({
     },
     errorText: {
         color: '#ff4444',
+    },
+    successText: {
+        color: '#43D17A',
+    },
+    warningText: {
+        color: '#FFD166',
+    },
+    diagnosticList: {
+        backgroundColor: '#11131A',
+        gap: Spacing.one,
+    },
+    diagnosticLine: {
+        color: '#C8D0E0',
+        opacity: 0.9,
     },
 });

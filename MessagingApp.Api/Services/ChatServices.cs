@@ -785,6 +785,55 @@ public class ChatServices : IChatServices
 
         return await activeUserRepository.IsUserActiveAsync(uniqueId);
     }
+
+    public async Task<List<AccountDataUserNamesResponse>?> GetBoardMembersAsync(
+        int boardId,
+        string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return null;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var requestingUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (board == null || requestingUser == null)
+        {
+            return null;
+        }
+
+        var requesterIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(
+            boardId,
+            requestingUser);
+
+        if (!requesterIsInBoard)
+        {
+            return null;
+        }
+
+        var members = new List<AccountDataUserNamesResponse>();
+
+        foreach (var member in board.ActiveUsers.OrderBy(user => user.UserName))
+        {
+            if (string.IsNullOrWhiteSpace(member.UniqueId))
+            {
+                continue;
+            }
+
+            var accountData = await userAccountRepository.GetUserAccountAsync(member.UniqueId);
+
+            members.Add(new AccountDataUserNamesResponse(
+                member.UniqueId,
+                member.UserName,
+                accountData?.DisplayName,
+                accountData?.AvatarImageId,
+                accountData?.PublicBlurb));
+        }
+
+        return members;
+    }
+
     public async Task<List<JoinBoardRequestDisplay>?> GetBoardJoinRequestsAsync(
         int boardId,
         string memberUniqueId

@@ -22,6 +22,7 @@ public interface IChatServices
     Task<bool> DenyUserJoinRequest(int boardId, string MemberUniqueId, string userName);
     Task<List<String>> GetPublicBoardNames();
     Task<bool> IsUserActiveAsync(string uniqueId);
+    Task<List<AccountDataUserNamesResponse>?> GetBoardMembersAsync(int boardId, string uniqueId);
     Task<List<JoinBoardRequestDisplay>?> GetBoardJoinRequestsAsync(int boardId, string memberUniqueId);
     Task<bool> InviteUserJoinRequest(int boardId, string memberUniqueId, string inviteUserName);
     Task<List<MessageBoardInviteResponse>?> GetUserInvitesAsync(string uniqueId);

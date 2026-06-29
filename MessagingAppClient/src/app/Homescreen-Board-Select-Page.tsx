@@ -1,7 +1,6 @@
 import { type ReactNode, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 
@@ -10,6 +9,7 @@ import type { MessageBoard, PublicProfileResponse } from '@/APIHandlers/ApiHandl
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { Button } from '@/components/ui/generic-button';
+import { UserProfileCard } from '@/components/ui/user-profile-card';
 import { BottomTabInset, ControlSize, MaxContentWidth, Radius, Spacing, type AppTheme } from '@/constants/theme';
 import { useBoards } from '@/hooks/API/use-boards';
 import {
@@ -38,6 +38,7 @@ export default function BoardSelectionScreen() {
     const [actionsMenuVisible, setActionsMenuVisible] = useState(false);
     const [boardOptionsBoard, setBoardOptionsBoard] = useState<MessageBoard | null>(null);
     const [leavingBoardId, setLeavingBoardId] = useState<number | null>(null);
+    const [leaveConfirmationBoardId, setLeaveConfirmationBoardId] = useState<number | null>(null);
     const [favoriteUpdatingBoardId, setFavoriteUpdatingBoardId] = useState<number | null>(null);
     const [privateJoinVisible, setPrivateJoinVisible] = useState(false);
     const [profileSearchVisible, setProfileSearchVisible] = useState(false);
@@ -223,6 +224,7 @@ export default function BoardSelectionScreen() {
 
     const handleOpenBoardOptions = (board: MessageBoard) => {
         setActionError('');
+        setLeaveConfirmationBoardId(null);
         setBoardOptionsBoard(board);
     };
 
@@ -232,6 +234,7 @@ export default function BoardSelectionScreen() {
         }
 
         setBoardOptionsBoard(null);
+        setLeaveConfirmationBoardId(null);
     };
 
     const handleToggleSelectedBoardFavorite = () => {
@@ -251,20 +254,25 @@ export default function BoardSelectionScreen() {
             return;
         }
 
-        Alert.alert(
-            'Leave board?',
-            `You will leave "${board.boardName}" and it will be removed from your board list.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Leave',
-                    style: 'destructive',
-                    onPress: () => {
-                        void leaveBoard(board);
-                    },
-                },
-            ]
-        );
+        setLeaveConfirmationBoardId(board.boardId);
+    };
+
+    const handleCancelLeaveSelectedBoard = () => {
+        if (leavingBoardId !== null) {
+            return;
+        }
+
+        setLeaveConfirmationBoardId(null);
+    };
+
+    const handleConfirmLeaveSelectedBoard = () => {
+        const board = boardOptionsBoard;
+
+        if (!board || leavingBoardId !== null) {
+            return;
+        }
+
+        void leaveBoard(board);
     };
 
     const leaveBoard = async (board: MessageBoard) => {
@@ -273,13 +281,14 @@ export default function BoardSelectionScreen() {
             setActionError('');
             await APIHandler.leaveBoard(board.boardId);
             setBoardOptionsBoard(null);
+            setLeaveConfirmationBoardId(null);
             await refreshBoards();
         }
         catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Unable to leave message board.';
             setActionError(errorMessage);
+            setLeaveConfirmationBoardId(null);
             console.error('Leave board error:', err);
-            Alert.alert('Error', errorMessage);
         }
         finally {
             setLeavingBoardId(null);
@@ -450,9 +459,13 @@ export default function BoardSelectionScreen() {
                 <BoardOptionsModal
                     board={boardOptionsBoard}
                     leavingBoardId={leavingBoardId}
+                    leaveConfirmationBoardId={leaveConfirmationBoardId}
                     favoriteUpdatingBoardId={favoriteUpdatingBoardId}
+                    errorMessage={actionError}
                     onToggleFavorite={handleToggleSelectedBoardFavorite}
-                    onLeaveBoard={handleLeaveSelectedBoard}
+                    onRequestLeaveBoard={handleLeaveSelectedBoard}
+                    onConfirmLeaveBoard={handleConfirmLeaveSelectedBoard}
+                    onCancelLeaveBoard={handleCancelLeaveSelectedBoard}
                     onClose={handleCloseBoardOptions}
                 />
 
@@ -934,13 +947,7 @@ function ProfileResultCard({
     openingPrivateChatForUserName,
     onOpenPrivateChat,
 }: ProfileResultCardProps) {
-    const theme = useTheme();
-    const styles = useBoardSelectionStyles();
-    const avatarImageUrl = profile.avatarImageId ? APIHandler.getImageUrl(profile.avatarImageId) : null;
     const userName = profile.userName?.trim() || 'Unknown user';
-    const uniqueId = profile.uniqueId?.trim() || 'Unknown';
-    const displayName = profile.displayName?.trim() || userName;
-    const avatarInitial = displayName.charAt(0).toUpperCase() || '?';
     const privateChatBoardName = currentUserName
         ? createPrivateUserChatBoardName(currentUserName, userName)
         : null;
@@ -951,60 +958,14 @@ function ProfileResultCard({
     const disablePrivateChatAction = !privateChatBoardName || !!openingPrivateChatForUserName;
 
     return (
-        <ThemedView style={styles.profileResultCard}>
-            <ThemedView style={styles.profileAvatarFrame}>
-                {avatarImageUrl ? (
-                    <Image
-                        source={{ uri: avatarImageUrl }}
-                        style={styles.profileAvatarImage}
-                        contentFit="cover"
-                        transition={120}
-                        accessibilityLabel="Profile picture"
-                    />
-                ) : (
-                    <ThemedText style={styles.profileAvatarInitial}>{avatarInitial}</ThemedText>
-                )}
-            </ThemedView>
-
-            <ThemedView style={styles.profileResultCopy}>
-                <ThemedText style={styles.profileDisplayName} numberOfLines={1}>
-                    {displayName}
-                </ThemedText>
-                <ThemedText style={styles.profileUserName} numberOfLines={1}>
-                    Username: {userName}
-                </ThemedText>
-                <ThemedText style={styles.profileUserName} numberOfLines={1}>
-                    ID: {uniqueId}
-                </ThemedText>
-
-                {profile.publicBlurb ? (
-                    <ThemedText style={styles.profileBlurb}>
-                        {profile.publicBlurb}
-                    </ThemedText>
-                ) : (
-                    <ThemedText style={styles.profileBlurbEmpty}>
-                        No public blurb yet.
-                    </ThemedText>
-                )}
-
-                <Button
-                    showText={true}
-                    buttonText={
-                        isOpeningPrivateChat
-                            ? 'Opening...'
-                            : existingPrivateChatBoard
-                                ? 'Open chat'
-                                : 'Start chat'
-                    }
-                    onPress={() => onOpenPrivateChat(profile)}
-                    disabled={disablePrivateChatAction}
-                    style={styles.profileChatButton}
-                    textStyle={styles.buttonText}
-                    backgroundColor={theme.actionPrimary}
-                    borderRadius={Radius.sm}
-                />
-            </ThemedView>
-        </ThemedView>
+        <UserProfileCard
+            profile={profile}
+            actionText={existingPrivateChatBoard ? 'Open chat' : 'Start chat'}
+            actionLoadingText="Opening..."
+            actionInProgress={isOpeningPrivateChat}
+            disabled={disablePrivateChatAction}
+            onAction={onOpenPrivateChat}
+        />
     );
 }
 
@@ -1172,22 +1133,32 @@ function BoardRow({
 type BoardOptionsModalProps = {
     board: MessageBoard | null;
     leavingBoardId: number | null;
+    leaveConfirmationBoardId: number | null;
     favoriteUpdatingBoardId: number | null;
+    errorMessage: string;
     onToggleFavorite: () => void;
-    onLeaveBoard: () => void;
+    onRequestLeaveBoard: () => void;
+    onConfirmLeaveBoard: () => void;
+    onCancelLeaveBoard: () => void;
     onClose: () => void;
 };
 
 function BoardOptionsModal({
     board,
     leavingBoardId,
+    leaveConfirmationBoardId,
     favoriteUpdatingBoardId,
+    errorMessage,
     onToggleFavorite,
-    onLeaveBoard,
+    onRequestLeaveBoard,
+    onConfirmLeaveBoard,
+    onCancelLeaveBoard,
     onClose,
 }: BoardOptionsModalProps) {
+    const theme = useTheme();
     const styles = useBoardSelectionStyles();
     const leavingThisBoard = !!board && leavingBoardId === board.boardId;
+    const confirmingLeaveThisBoard = !!board && leaveConfirmationBoardId === board.boardId;
     const favoriteUpdatingThisBoard = !!board && favoriteUpdatingBoardId === board.boardId;
     const optionsDisabled = leavingBoardId !== null || favoriteUpdatingBoardId !== null;
 
@@ -1201,6 +1172,14 @@ function BoardOptionsModal({
             onClose={onClose}
         >
             <ThemedView style={styles.boardOptionsMenu}>
+                {errorMessage ? (
+                    <ThemedView style={styles.boardOptionsNotice}>
+                        <ThemedText style={styles.boardOptionsNoticeText}>
+                            {errorMessage}
+                        </ThemedText>
+                    </ThemedView>
+                ) : null}
+
                 <Pressable
                     onPress={onToggleFavorite}
                     disabled={!board || optionsDisabled}
@@ -1221,21 +1200,53 @@ function BoardOptionsModal({
                     </ThemedText>
                 </Pressable>
 
-                <Pressable
-                    onPress={onLeaveBoard}
-                    disabled={!board || optionsDisabled}
-                    accessibilityRole="button"
-                    style={({ pressed }) => [
-                        styles.boardOptionsMenuItem,
-                        styles.boardOptionsMenuItemDanger,
-                        pressed && styles.actionMenuItemPressed,
-                        (!board || optionsDisabled) && styles.disabledControl,
-                    ]}
-                >
-                    <ThemedText style={styles.boardOptionsDangerText}>
-                        {leavingThisBoard ? 'Leaving...' : 'Leave Board'}
-                    </ThemedText>
-                </Pressable>
+                {confirmingLeaveThisBoard ? (
+                    <ThemedView style={styles.boardOptionsConfirm}>
+                        <ThemedText style={styles.boardOptionsConfirmText}>
+                            Leave this board?
+                        </ThemedText>
+
+                        <ThemedView style={styles.boardOptionsConfirmActions}>
+                            <Button
+                                showText={true}
+                                buttonText={leavingThisBoard ? 'Leaving...' : 'Leave'}
+                                onPress={onConfirmLeaveBoard}
+                                disabled={!board || optionsDisabled}
+                                style={styles.boardOptionsConfirmButton}
+                                textStyle={styles.buttonText}
+                                backgroundColor={theme.actionDanger}
+                                borderRadius={Radius.sm}
+                            />
+
+                            <Button
+                                showText={true}
+                                buttonText="Cancel"
+                                onPress={onCancelLeaveBoard}
+                                disabled={optionsDisabled}
+                                style={styles.boardOptionsConfirmButton}
+                                textStyle={styles.buttonText}
+                                backgroundColor={theme.actionDisabled}
+                                borderRadius={Radius.sm}
+                            />
+                        </ThemedView>
+                    </ThemedView>
+                ) : (
+                    <Pressable
+                        onPress={onRequestLeaveBoard}
+                        disabled={!board || optionsDisabled}
+                        accessibilityRole="button"
+                        style={({ pressed }) => [
+                            styles.boardOptionsMenuItem,
+                            styles.boardOptionsMenuItemDanger,
+                            pressed && styles.actionMenuItemPressed,
+                            (!board || optionsDisabled) && styles.disabledControl,
+                        ]}
+                    >
+                        <ThemedText style={styles.boardOptionsDangerText}>
+                            {leavingThisBoard ? 'Leaving...' : 'Leave Board'}
+                        </ThemedText>
+                    </Pressable>
+                )}
             </ThemedView>
         </ActionModal>
     );
@@ -1533,6 +1544,22 @@ function createBoardSelectionStyles(theme: AppTheme) {
             backgroundColor: theme.surfaceRaised,
         },
 
+        boardOptionsNotice: {
+            borderWidth: 1,
+            borderColor: theme.actionDanger,
+            borderRadius: Radius.sm,
+            paddingHorizontal: Spacing.three,
+            paddingVertical: Spacing.two,
+            backgroundColor: theme.dangerSurface,
+        },
+
+        boardOptionsNoticeText: {
+            color: theme.dangerText,
+            fontSize: 14,
+            lineHeight: 20,
+            fontWeight: '700',
+        },
+
         boardOptionsMenuItem: {
             minHeight: 46,
             justifyContent: 'center',
@@ -1557,6 +1584,36 @@ function createBoardSelectionStyles(theme: AppTheme) {
             fontSize: 15,
             lineHeight: 20,
             fontWeight: '800',
+        },
+
+        boardOptionsConfirm: {
+            gap: Spacing.two,
+            borderWidth: 1,
+            borderColor: theme.actionDanger,
+            borderRadius: Radius.sm,
+            padding: Spacing.three,
+            backgroundColor: theme.dangerSurface,
+        },
+
+        boardOptionsConfirmText: {
+            color: theme.dangerText,
+            fontSize: 15,
+            lineHeight: 20,
+            fontWeight: '800',
+        },
+
+        boardOptionsConfirmActions: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: Spacing.two,
+            backgroundColor: 'transparent',
+        },
+
+        boardOptionsConfirmButton: {
+            minHeight: 40,
+            minWidth: 96,
+            paddingHorizontal: Spacing.three,
+            paddingVertical: Spacing.two,
         },
 
         boardOptionsDangerText: {
@@ -1669,84 +1726,6 @@ function createBoardSelectionStyles(theme: AppTheme) {
             fontSize: 14,
             lineHeight: 20,
             marginTop: Spacing.one,
-        },
-
-        profileResultCard: {
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            gap: Spacing.three,
-            borderWidth: 1,
-            borderColor: theme.borderSubtle,
-            borderRadius: Radius.sm,
-            padding: Spacing.three,
-            marginTop: Spacing.one,
-            backgroundColor: theme.surfacePreview,
-        },
-
-        profileAvatarFrame: {
-            width: 68,
-            height: 68,
-            borderRadius: 34,
-            overflow: 'hidden',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderWidth: 1,
-            borderColor: theme.borderAccent,
-            backgroundColor: theme.surfaceInput,
-        },
-
-        profileAvatarImage: {
-            width: '100%',
-            height: '100%',
-        },
-
-        profileAvatarInitial: {
-            color: theme.text,
-            fontSize: 26,
-            fontWeight: '800',
-        },
-
-        profileResultCopy: {
-            flex: 1,
-            minWidth: 0,
-            gap: Spacing.half,
-            backgroundColor: theme.surfacePreview,
-        },
-
-        profileDisplayName: {
-            fontSize: 17,
-            lineHeight: 22,
-            fontWeight: '800',
-            color: theme.text,
-        },
-
-        profileUserName: {
-            fontSize: 13,
-            lineHeight: 18,
-            color: theme.textSecondary,
-        },
-
-        profileBlurb: {
-            fontSize: 14,
-            lineHeight: 20,
-            color: theme.text,
-            marginTop: Spacing.one,
-        },
-
-        profileBlurbEmpty: {
-            fontSize: 14,
-            lineHeight: 20,
-            color: theme.textSecondary,
-            marginTop: Spacing.one,
-            fontStyle: 'italic',
-        },
-
-        profileChatButton: {
-            alignSelf: 'flex-start',
-            minHeight: 40,
-            paddingHorizontal: Spacing.three,
-            paddingVertical: Spacing.two,
-            marginTop: Spacing.two,
         },
 
         modalInput: {

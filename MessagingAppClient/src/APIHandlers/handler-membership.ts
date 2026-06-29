@@ -1,6 +1,6 @@
 import { apiUrl } from './Helpers/config';
 import { getStoredUniqueId } from '@/session/session-storage';
-import type { BoardJoinRequest, MessageBoardInvite } from './Helpers/types';
+import type { BoardJoinRequest, MessageBoardInvite, PublicProfileResponse } from './Helpers/types';
 
 export async function approveOfRequestedMembership(boardId: number, reqUserName: string) {
     const memberUniqueId = await getStoredUniqueId();
@@ -88,7 +88,7 @@ export async function leaveBoard(boardId: number): Promise<boolean> {
     if (!response.ok) {
         const txt = await response.text();
         console.error('Leave board failed:', txt);
-        throw new Error('Unable to leave message board.');
+        throw new Error('Unable to leave message board. You may not be a member of this board.');
     }
 
     return true;
@@ -159,6 +159,20 @@ export async function getBoardJoinRequests(
 
     if (!response.ok) {
         throw new Error('Failed to fetch join requests');
+    }
+
+    return await response.json();
+}
+
+export async function getBoardMembers(boardId: number): Promise<PublicProfileResponse[]> {
+    const uniqueId = await getStoredUniqueId();
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/members?uniqueId=${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress);
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Load board members failed:', txt);
+        throw new Error('Failed to load board members');
     }
 
     return await response.json();

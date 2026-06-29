@@ -8,6 +8,7 @@ import {
     Alert,
     Keyboard,
     KeyboardAvoidingView,
+    Modal,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Platform,
@@ -15,16 +16,18 @@ import {
     ScrollView,
     StyleSheet,
     TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import * as APIHandler from '@/APIHandlers/ApiHandlerHub';
-import type { ImageUploadInput } from '@/APIHandlers/ApiHandlerHub';
+import type { ImageUploadInput, MessageBoard, PublicProfileResponse } from '@/APIHandlers/ApiHandlerHub';
 import type MessageClass from '@/components/Models/message-class';
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { Button } from '@/components/ui/generic-button';
 import { MessageBox } from '@/components/ui/message-box';
+import { UserProfileCard } from '@/components/ui/user-profile-card';
 import { ControlSize, MaxContentWidth, Radius, Spacing, type AppTheme } from '@/constants/theme';
 import { useBoardDetails } from '@/hooks/API/use-board-details';
 import { useBoardJoinRequests } from '@/hooks/API/use-board-join-requests';
@@ -37,6 +40,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/hooks/use-session';
 import { createImageUploadInput, SUPPORTED_IMAGE_TYPES } from '@/utils/image-upload';
 import {
+    createHiddenPrivateUserChatPassword,
+    createPrivateUserChatBoardName,
     formatPrivateUserChatParticipantLabel,
     getOtherPrivateUserChatUserName,
 } from '@/utils/private-user-chat';
@@ -60,6 +65,12 @@ export default function ChatScreen() {
     const [selectedImage, setSelectedImage] = useState<ImageUploadInput | null>(null);
     const [showScrollToBottom, setShowScrollToBottom] = useState(false);
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const [boardMembersVisible, setBoardMembersVisible] = useState(false);
+    const [boardMembers, setBoardMembers] = useState<PublicProfileResponse[]>([]);
+    const [boardMembersBoards, setBoardMembersBoards] = useState<MessageBoard[]>([]);
+    const [boardMembersLoading, setBoardMembersLoading] = useState(false);
+    const [boardMembersError, setBoardMembersError] = useState('');
+    const [openingPrivateChatForUserName, setOpeningPrivateChatForUserName] = useState<string | null>(null);
     const scrollViewRef = useRef<ScrollView>(null);
     const isNearBottomRef = useRef(true);
     const didInitialScrollRef = useRef(false);
@@ -93,6 +104,7 @@ export default function ChatScreen() {
     const hasJoinRequests = !isPrivateUserChat && (joinRequests ?? []).length > 0;
     const canUseBoardActions = !!session && isValidBoardId;
     const canShowInviteBar = !!boardInfo && !isPrivateUserChat;
+    const canShowBoardMembers = !!boardInfo && !isPrivateUserChat && canUseBoardActions;
     const canPickImage = !loading && canUseBoardActions;
     const canSendMessage = canUseBoardActions && !loading && (text.trim().length > 0 || !!selectedImage);
     const safeAreaEdges: Edge[] = isKeyboardVisible
@@ -279,6 +291,124 @@ export default function ChatScreen() {
         }
     };
 
+    const handleOpenBoardMembers = async () => {
+        if (!session) {
+            Alert.alert('Session expired', 'Please log in again before viewing board members.');
+            router.replace('../Login-Registration-Page');
+            return;
+        }
+
+        try {
+            setBoardMembersVisible(true);
+            setBoardMembersLoading(true);
+            setBoardMembersError('');
+
+            const [members, boards] = await Promise.all([
+                APIHandler.getBoardMembers(boardId),
+                APIHandler.getMessageBoards(),
+            ]);
+
+            setBoardMembersBoards(boards);
+            setBoardMembers(sortUserProfiles(
+                members.filter((member) => member.uniqueId !== session.uniqueId)
+            ));
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load board members';
+            setBoardMembersError(errorMessage);
+            console.error('Load board members error:', err);
+        } finally {
+            setBoardMembersLoading(false);
+        }
+    };
+
+    const handleCloseBoardMembers = () => {
+        if (boardMembersLoading || openingPrivateChatForUserName) {
+            return;
+        }
+
+        setBoardMembersVisible(false);
+    };
+
+    const handleOpenPrivateUserChat = async (profile: PublicProfileResponse) => {
+        const currentUserName = session?.userName?.trim();
+        const otherUserName = profile.userName?.trim();
+
+        if (!session || !currentUserName) {
+            Alert.alert('Session expired', 'Please log in again before starting a chat.');
+            router.replace('../Login-Registration-Page');
+            return;
+        }
+
+        if (!otherUserName) {
+            Alert.alert('Missing username', 'This member does not have a usable username.');
+            return;
+        }
+
+        const privateChatBoardName = createPrivateUserChatBoardName(currentUserName, otherUserName);
+
+        if (!privateChatBoardName) {
+            Alert.alert('Unable to start chat', 'Private chats need two different usernames.');
+            return;
+        }
+
+        try {
+            setOpeningPrivateChatForUserName(otherUserName);
+            setBoardMembersError('');
+
+            const boards = await APIHandler.getMessageBoards();
+            setBoardMembersBoards(boards);
+
+            const existingPrivateChatBoard = boards.find(
+                (board) => board.boardName.toLowerCase() === privateChatBoardName.toLowerCase()
+            );
+
+            if (existingPrivateChatBoard) {
+                setBoardMembersVisible(false);
+                router.push({
+                    pathname: '../Chat-Page',
+                    params: { boardId: existingPrivateChatBoard.boardId.toString() },
+                });
+                return;
+            }
+
+            const pendingInvites = await APIHandler.getUserBoardInvites();
+            const matchingPrivateChatInvite = pendingInvites.find(
+                (invite) => invite.boardName.toLowerCase() === privateChatBoardName.toLowerCase()
+            );
+
+            if (matchingPrivateChatInvite) {
+                await APIHandler.acceptBoardInvite(matchingPrivateChatInvite.boardId);
+                setBoardMembersVisible(false);
+                router.push({
+                    pathname: '../Chat-Page',
+                    params: { boardId: matchingPrivateChatInvite.boardId.toString() },
+                });
+                return;
+            }
+
+            const createdBoard = await APIHandler.createMessageBoard(
+                privateChatBoardName,
+                false,
+                true,
+                createHiddenPrivateUserChatPassword()
+            );
+
+            await APIHandler.inviteUserToBoard(createdBoard.boardId, otherUserName);
+            setBoardMembersVisible(false);
+            router.push({
+                pathname: '../Chat-Page',
+                params: { boardId: createdBoard.boardId.toString() },
+            });
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to start private chat';
+            setBoardMembersError(errorMessage);
+            console.error('Open private chat error:', err);
+            Alert.alert('Error', errorMessage);
+        } finally {
+            setOpeningPrivateChatForUserName(null);
+        }
+    };
+
     const handleBackToBoards = () => {
         router.push('../Homescreen-Board-Select-Page');
     };
@@ -290,8 +420,10 @@ export default function ChatScreen() {
                     boardTitle={boardTitle}
                     uniqueBoardId={uniqueBoardId}
                     hasJoinRequests={hasJoinRequests}
+                    showBoardMembers={canShowBoardMembers}
                     onBackPress={handleBackToBoards}
                     onJoinRequestsPress={handleNewUserRequest}
+                    onBoardMembersPress={handleOpenBoardMembers}
                 />
 
                 {canShowInviteBar ? (
@@ -303,6 +435,18 @@ export default function ChatScreen() {
                         onInviteUser={handleInviteUser}
                     />
                 ) : null}
+
+                <BoardMembersModal
+                    visible={boardMembersVisible}
+                    members={boardMembers}
+                    boards={boardMembersBoards}
+                    currentUserName={session?.userName}
+                    loading={boardMembersLoading}
+                    errorMessage={boardMembersError}
+                    openingPrivateChatForUserName={openingPrivateChatForUserName}
+                    onOpenPrivateChat={handleOpenPrivateUserChat}
+                    onClose={handleCloseBoardMembers}
+                />
 
                 <KeyboardAvoidingView
                     style={styles.chatBody}
@@ -342,16 +486,20 @@ type ChatHeaderProps = {
     boardTitle: string;
     uniqueBoardId: string | null;
     hasJoinRequests: boolean;
+    showBoardMembers: boolean;
     onBackPress: () => void;
     onJoinRequestsPress: () => void;
+    onBoardMembersPress: () => void;
 };
 
 function ChatHeader({
     boardTitle,
     uniqueBoardId,
     hasJoinRequests,
+    showBoardMembers,
     onBackPress,
     onJoinRequestsPress,
+    onBoardMembersPress,
 }: ChatHeaderProps) {
     const theme = useTheme();
     const styles = useChatStyles();
@@ -384,18 +532,33 @@ function ChatHeader({
                 ) : null}
             </ThemedView>
 
-            {hasJoinRequests ? (
-                <Button
-                    showText
-                    buttonText="Join Requests"
-                    onPress={onJoinRequestsPress}
-                    style={[styles.backButton, !IS_WEB && styles.backButtonMobile]}
-                    borderWidth={2}
-                    backgroundColor={theme.buttonBackground}
-                    borderColor={theme.borderAccent}
-                    borderRadius={Radius.sm}
-                />
-            ) : null}
+            <ThemedView style={styles.headerActions}>
+                {hasJoinRequests ? (
+                    <Button
+                        showText
+                        buttonText={IS_WEB ? 'Join Requests' : 'Requests'}
+                        onPress={onJoinRequestsPress}
+                        style={[styles.backButton, !IS_WEB && styles.backButtonMobile]}
+                        borderWidth={2}
+                        backgroundColor={theme.buttonBackground}
+                        borderColor={theme.borderAccent}
+                        borderRadius={Radius.sm}
+                    />
+                ) : null}
+
+                {showBoardMembers ? (
+                    <Button
+                        showText
+                        buttonText={IS_WEB ? 'Board Members' : 'Members'}
+                        onPress={onBoardMembersPress}
+                        style={[styles.backButton, !IS_WEB && styles.backButtonMobile]}
+                        borderWidth={2}
+                        backgroundColor={theme.buttonBackground}
+                        borderColor={theme.borderAccent}
+                        borderRadius={Radius.sm}
+                    />
+                ) : null}
+            </ThemedView>
         </ThemedView>
     );
 }
@@ -440,6 +603,151 @@ function BoardInviteBar({
                 textStyle={styles.inviteButtonText}
             />
         </ThemedView>
+    );
+}
+
+type BoardMembersModalProps = {
+    visible: boolean;
+    members: PublicProfileResponse[];
+    boards: MessageBoard[];
+    currentUserName?: string | null;
+    loading: boolean;
+    errorMessage: string;
+    openingPrivateChatForUserName: string | null;
+    onOpenPrivateChat: (profile: PublicProfileResponse) => void;
+    onClose: () => void;
+};
+
+function BoardMembersModal({
+    visible,
+    members,
+    boards,
+    currentUserName,
+    loading,
+    errorMessage,
+    openingPrivateChatForUserName,
+    onOpenPrivateChat,
+    onClose,
+}: BoardMembersModalProps) {
+    const theme = useTheme();
+    const styles = useChatStyles();
+    const actionInProgress = loading || !!openingPrivateChatForUserName;
+
+    return (
+        <Modal
+            visible={visible}
+            transparent
+            animationType="fade"
+            onRequestClose={onClose}
+        >
+            <ThemedView style={styles.modalOverlay}>
+                <Pressable
+                    style={styles.modalBackdrop}
+                    onPress={onClose}
+                    disabled={actionInProgress}
+                />
+
+                <ThemedView style={styles.membersModalCard}>
+                    <ThemedView style={styles.membersModalHeader}>
+                        <View style={styles.membersModalTitleBlock}>
+                            <ThemedText type="subtitle" style={styles.membersModalTitle}>
+                                Board Members
+                            </ThemedText>
+                            <ThemedText style={styles.membersModalSubtitle}>
+                                Start a private chat with someone in this board.
+                            </ThemedText>
+                        </View>
+
+                        <Pressable
+                            onPress={onClose}
+                            disabled={actionInProgress}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close board members"
+                            style={({ pressed }) => [
+                                styles.modalCloseButton,
+                                pressed && styles.iconButtonPressed,
+                                actionInProgress && styles.iconButtonDisabled,
+                            ]}
+                        >
+                            <SymbolView
+                                name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                                size={18}
+                                weight="bold"
+                                tintColor={theme.text}
+                            />
+                        </Pressable>
+                    </ThemedView>
+
+                    {loading ? (
+                        <ThemedView style={styles.membersStatusContainer}>
+                            <ActivityIndicator color={theme.actionPrimary} />
+                            <ThemedText style={styles.membersStatusText}>Loading members...</ThemedText>
+                        </ThemedView>
+                    ) : errorMessage ? (
+                        <ThemedView style={styles.membersStatusContainer}>
+                            <ThemedText style={styles.membersErrorText}>{errorMessage}</ThemedText>
+                        </ThemedView>
+                    ) : members.length === 0 ? (
+                        <ThemedView style={styles.membersStatusContainer}>
+                            <ThemedText style={styles.membersStatusText}>No other members yet.</ThemedText>
+                        </ThemedView>
+                    ) : (
+                        <ScrollView
+                            style={styles.membersList}
+                            contentContainerStyle={styles.membersListContent}
+                        >
+                            {members.map((member) => (
+                                <BoardMemberProfileCard
+                                    key={member.uniqueId}
+                                    profile={member}
+                                    boards={boards}
+                                    currentUserName={currentUserName}
+                                    openingPrivateChatForUserName={openingPrivateChatForUserName}
+                                    onOpenPrivateChat={onOpenPrivateChat}
+                                />
+                            ))}
+                        </ScrollView>
+                    )}
+                </ThemedView>
+            </ThemedView>
+        </Modal>
+    );
+}
+
+type BoardMemberProfileCardProps = {
+    profile: PublicProfileResponse;
+    boards: MessageBoard[];
+    currentUserName?: string | null;
+    openingPrivateChatForUserName: string | null;
+    onOpenPrivateChat: (profile: PublicProfileResponse) => void;
+};
+
+function BoardMemberProfileCard({
+    profile,
+    boards,
+    currentUserName,
+    openingPrivateChatForUserName,
+    onOpenPrivateChat,
+}: BoardMemberProfileCardProps) {
+    const userName = profile.userName?.trim() || 'Unknown user';
+    const privateChatBoardName = currentUserName
+        ? createPrivateUserChatBoardName(currentUserName, userName)
+        : null;
+    const existingPrivateChatBoard = privateChatBoardName
+        ? boards.find((board) => board.boardName.toLowerCase() === privateChatBoardName.toLowerCase())
+        : null;
+    const isOpeningPrivateChat = openingPrivateChatForUserName?.toLowerCase() === userName.toLowerCase();
+    const disablePrivateChatAction = !privateChatBoardName || !!openingPrivateChatForUserName;
+
+    return (
+        <UserProfileCard
+            profile={profile}
+            actionText={existingPrivateChatBoard ? 'Open chat' : 'Message'}
+            actionLoadingText="Opening..."
+            actionInProgress={isOpeningPrivateChat}
+            disabled={disablePrivateChatAction}
+            onAction={onOpenPrivateChat}
+        />
     );
 }
 
@@ -661,6 +969,19 @@ function formatDisplayName(userName: string, displayName?: string) {
     return `${displayName} (${userName})`;
 }
 
+function sortUserProfiles(profiles: PublicProfileResponse[]) {
+    return [...profiles].sort((left, right) => {
+        const leftName = (left.displayName || left.userName || '').toLowerCase();
+        const rightName = (right.displayName || right.userName || '').toLowerCase();
+
+        if (leftName !== rightName) {
+            return leftName.localeCompare(rightName);
+        }
+
+        return (left.userName || '').localeCompare(right.userName || '');
+    });
+}
+
 function useChatStyles() {
     const theme = useTheme();
 
@@ -727,6 +1048,14 @@ function createChatStyles(theme: AppTheme) {
         paddingHorizontal: 0,
     },
 
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        flexWrap: 'wrap',
+        gap: Spacing.two,
+    },
+
     boardTitle: {
         flex: 0,
         fontSize: 24,
@@ -784,6 +1113,102 @@ function createChatStyles(theme: AppTheme) {
         color: theme.textOnAccent,
         fontSize: 14,
         fontWeight: '700',
+    },
+
+    modalOverlay: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: Spacing.four,
+        backgroundColor: theme.surfaceOverlay,
+    },
+
+    modalBackdrop: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+    },
+
+    membersModalCard: {
+        width: '100%',
+        maxWidth: 560,
+        maxHeight: '82%',
+        borderWidth: 1,
+        borderColor: theme.borderOverlay,
+        borderRadius: Radius.sm,
+        padding: Spacing.four,
+        gap: Spacing.three,
+        backgroundColor: theme.surfaceRaised,
+    },
+
+    membersModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: Spacing.three,
+        backgroundColor: theme.surfaceRaised,
+    },
+
+    membersModalTitleBlock: {
+        flex: 1,
+        minWidth: 0,
+    },
+
+    membersModalTitle: {
+        fontSize: 22,
+        lineHeight: 28,
+        fontWeight: '700',
+    },
+
+    membersModalSubtitle: {
+        color: theme.textSecondary,
+        fontSize: 14,
+        lineHeight: 20,
+        marginTop: Spacing.half,
+    },
+
+    modalCloseButton: {
+        width: 40,
+        height: 40,
+        borderRadius: Radius.round,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: theme.borderOverlay,
+        backgroundColor: theme.surfaceOverlayControl,
+    },
+
+    membersStatusContainer: {
+        minHeight: 140,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.two,
+        backgroundColor: theme.surfaceRaised,
+    },
+
+    membersStatusText: {
+        color: theme.textSecondary,
+        fontSize: 15,
+        lineHeight: 20,
+        textAlign: 'center',
+    },
+
+    membersErrorText: {
+        color: theme.dangerText,
+        fontSize: 15,
+        lineHeight: 20,
+        textAlign: 'center',
+    },
+
+    membersList: {
+        maxHeight: 520,
+    },
+
+    membersListContent: {
+        gap: Spacing.two,
+        paddingBottom: Spacing.one,
     },
 
     messageScroll: {

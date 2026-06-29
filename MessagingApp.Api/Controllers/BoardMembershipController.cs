@@ -132,6 +132,21 @@ public class BoardMembershipController : ControllerBase
         return Ok(requests);
     }
 
+    [HttpGet("/message-boards/{boardId}/members")]
+    public async Task<IActionResult> GetBoardMembersAsync(
+        int boardId,
+        string uniqueId)
+    {
+        var members = await chatService.GetBoardMembersAsync(boardId, uniqueId);
+
+        if (members == null)
+        {
+            return BadRequest("Unable to load board members.");
+        }
+
+        return Ok(members);
+    }
+
     [HttpPost("/message-boards/{boardId}/invites")]
     public async Task<IActionResult> AttemptMessageBoardInviteAsync(
         int boardId,

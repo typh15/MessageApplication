@@ -29,6 +29,8 @@ public class ChatServices : IChatServices
 
         foreach (var board in boards)
         {
+            board.IsFavorite = activeUser?.FavoriteMessageBoardIds.Contains(board.BoardId) == true;
+
             if (board.VisibleToPublic)
             {
                 visibleBoards.Add(board);
@@ -92,7 +94,13 @@ public class ChatServices : IChatServices
         }
 
 
-        return await messageBoardRepository.GetMessageBoardDataByIdAsync(boardId);
+        var boardData = await messageBoardRepository.GetMessageBoardDataByIdAsync(boardId);
+        if (boardData != null)
+        {
+            boardData.IsFavorite = activeUser.FavoriteMessageBoardIds.Contains(boardId);
+        }
+
+        return boardData;
     }
 
     public async Task<MessageBoardDataResponse?> CreateMessageBoardAsync(string uniqueId, string boardName, bool visibleToPublic, bool passwordProtected, string password)
@@ -376,6 +384,79 @@ public class ChatServices : IChatServices
         }
 
         return true;
+    }
+
+    public async Task<bool> LeaveBoardAsync(int boardId, string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (board == null || activeUser == null)
+        {
+            return false;
+        }
+
+        var userIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser);
+
+        if (!userIsInBoard)
+        {
+            return false;
+        }
+
+        var removedFromBoard = await messageBoardRepository.RemoveUserFromBoardAsync(boardId, activeUser);
+        if (removedFromBoard)
+        {
+            await activeUserRepository.RemoveFavoriteBoardAsync(uniqueId, boardId);
+        }
+
+        return removedFromBoard;
+    }
+
+    public async Task<bool> AddFavoriteBoardAsync(int boardId, string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (board == null || activeUser == null)
+        {
+            return false;
+        }
+
+        var userIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, activeUser);
+        if (!userIsInBoard)
+        {
+            return false;
+        }
+
+        return await activeUserRepository.AddFavoriteBoardAsync(uniqueId, boardId);
+    }
+
+    public async Task<bool> RemoveFavoriteBoardAsync(int boardId, string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+        var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
+
+        if (board == null || activeUser == null)
+        {
+            return false;
+        }
+
+        return await activeUserRepository.RemoveFavoriteBoardAsync(uniqueId, boardId);
     }
 
     public async Task<bool> DeleteMessageAsync(string uniqueId, int boardId, int messageId)

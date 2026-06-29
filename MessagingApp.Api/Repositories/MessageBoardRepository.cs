@@ -160,6 +160,7 @@ class MessageBoardRepository : IMessageBoardRepository
             {
                 var user = messageBoard.ActiveUsers[i];
                 user.MessageBoardIds.Remove(boardid);
+                user.FavoriteMessageBoardIds.Remove(boardid);
             }
             for (int i = 0; i < messageBoard.UserRequests.Length; i++)
             {

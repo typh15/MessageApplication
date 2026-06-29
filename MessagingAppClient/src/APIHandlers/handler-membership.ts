@@ -80,6 +80,20 @@ export async function joinBoardByCode(uniqueBoardId: string, password: string): 
     return true;
 }
 
+export async function leaveBoard(boardId: number): Promise<boolean> {
+    const uniqueId = await getStoredUniqueId();
+    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/memberships/self?uniqueId=${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress, { method: 'DELETE' });
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Leave board failed:', txt);
+        throw new Error('Unable to leave message board.');
+    }
+
+    return true;
+}
+
 export async function inviteUserToBoard(boardId: number, inviteUserName: string): Promise<boolean> {
     const memberUniqueId = await getStoredUniqueId();
     const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/invites?memberUniqueId=${encodeURIComponent(memberUniqueId)}&inviteUserName=${encodeURIComponent(inviteUserName)}`);

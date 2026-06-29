@@ -7,6 +7,7 @@ public sealed class ActiveUserRecord
     public DateTime LastActiveTime { get; set; }
 
     public List<MessageBoardMemberRecord> BoardMemberships { get; set; } = [];
+    public List<MessageBoardFavoriteRecord> FavoriteBoards { get; set; } = [];
     public List<MessageBoardJoinRequestRecord> BoardJoinRequests { get; set; } = [];
     public List<MessageBoardInviteRecord> BoardInvites { get; set; } = [];
 }
@@ -34,6 +35,7 @@ public sealed class MessageBoardRecord
     public string? UniqueBoardId { get; set; }
 
     public List<MessageBoardMemberRecord> Members { get; set; } = [];
+    public List<MessageBoardFavoriteRecord> Favorites { get; set; } = [];
     public List<MessageBoardJoinRequestRecord> JoinRequests { get; set; } = [];
     public List<MessageBoardInviteRecord> Invites { get; set; } = [];
     public List<ChatMessageRecord> Messages { get; set; } = [];
@@ -44,6 +46,16 @@ public sealed class MessageBoardMemberRecord
     public int BoardId { get; set; }
     public string UserUniqueId { get; set; } = string.Empty;
     public DateTime AddedAtUtc { get; set; }
+
+    public MessageBoardRecord? Board { get; set; }
+    public ActiveUserRecord? User { get; set; }
+}
+
+public sealed class MessageBoardFavoriteRecord
+{
+    public int BoardId { get; set; }
+    public string UserUniqueId { get; set; } = string.Empty;
+    public DateTime FavoritedAtUtc { get; set; }
 
     public MessageBoardRecord? Board { get; set; }
     public ActiveUserRecord? User { get; set; }

@@ -36,6 +36,9 @@ export default function BoardSelectionScreen() {
     const [joiningByCode, setJoiningByCode] = useState(false);
     const [actionError, setActionError] = useState('');
     const [actionsMenuVisible, setActionsMenuVisible] = useState(false);
+    const [boardOptionsBoard, setBoardOptionsBoard] = useState<MessageBoard | null>(null);
+    const [leavingBoardId, setLeavingBoardId] = useState<number | null>(null);
+    const [favoriteUpdatingBoardId, setFavoriteUpdatingBoardId] = useState<number | null>(null);
     const [privateJoinVisible, setPrivateJoinVisible] = useState(false);
     const [profileSearchVisible, setProfileSearchVisible] = useState(false);
     const [profileSearchUserName, setProfileSearchUserName] = useState('');
@@ -54,6 +57,7 @@ export default function BoardSelectionScreen() {
         refresh: refreshBoards,
     } = useBoards();
     const boards = boardsData ?? [];
+    const sortedBoards = useMemo(() => sortBoardsByFavorite(boards), [boards]);
     const errorMessage = actionError || boardsError?.message || '';
     const privateChatUserNames = useMemo(
         () => getPrivateChatUserNamesFromBoards(boards, session?.userName),
@@ -217,6 +221,97 @@ export default function BoardSelectionScreen() {
         }
     };
 
+    const handleOpenBoardOptions = (board: MessageBoard) => {
+        setActionError('');
+        setBoardOptionsBoard(board);
+    };
+
+    const handleCloseBoardOptions = () => {
+        if (leavingBoardId !== null || favoriteUpdatingBoardId !== null) {
+            return;
+        }
+
+        setBoardOptionsBoard(null);
+    };
+
+    const handleToggleSelectedBoardFavorite = () => {
+        const board = boardOptionsBoard;
+
+        if (!board || leavingBoardId !== null || favoriteUpdatingBoardId !== null) {
+            return;
+        }
+
+        void toggleFavoriteBoard(board);
+    };
+
+    const handleLeaveSelectedBoard = () => {
+        const board = boardOptionsBoard;
+
+        if (!board || leavingBoardId !== null) {
+            return;
+        }
+
+        Alert.alert(
+            'Leave board?',
+            `You will leave "${board.boardName}" and it will be removed from your board list.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Leave',
+                    style: 'destructive',
+                    onPress: () => {
+                        void leaveBoard(board);
+                    },
+                },
+            ]
+        );
+    };
+
+    const leaveBoard = async (board: MessageBoard) => {
+        try {
+            setLeavingBoardId(board.boardId);
+            setActionError('');
+            await APIHandler.leaveBoard(board.boardId);
+            setBoardOptionsBoard(null);
+            await refreshBoards();
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unable to leave message board.';
+            setActionError(errorMessage);
+            console.error('Leave board error:', err);
+            Alert.alert('Error', errorMessage);
+        }
+        finally {
+            setLeavingBoardId(null);
+        }
+    };
+
+    const toggleFavoriteBoard = async (board: MessageBoard) => {
+        try {
+            setFavoriteUpdatingBoardId(board.boardId);
+            setActionError('');
+
+            if (board.isFavorite) {
+                await APIHandler.removeFavoriteBoard(board.boardId);
+            }
+            else {
+                await APIHandler.addFavoriteBoard(board.boardId);
+            }
+
+            setBoardOptionsBoard(null);
+            await refreshBoards();
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unable to update favorite board.';
+            setActionError(errorMessage);
+            console.error('Favorite board error:', err);
+            Alert.alert('Error', errorMessage);
+        }
+        finally {
+            setFavoriteUpdatingBoardId(null);
+        }
+    };
+
     const handleOpenPrivateUserChat = async (profile: PublicProfileResponse) => {
         const currentUserName = session?.userName?.trim();
         const otherUserName = profile.userName?.trim();
@@ -340,16 +435,26 @@ export default function BoardSelectionScreen() {
                         ) : null}
 
                         <BoardList
-                            boards={boards}
+                            boards={sortedBoards}
                             loading={boardsLoading}
                             joining={joining}
                             selectedBoardId={selectedBoardId}
                             currentUserName={session?.userName}
                             privateChatProfilesByUserName={privateChatProfilesByUserName}
                             onJoinBoard={handleJoinBoard}
+                            onOpenBoardOptions={handleOpenBoardOptions}
                         />
                     </ThemedView>
                 </ScrollView>
+
+                <BoardOptionsModal
+                    board={boardOptionsBoard}
+                    leavingBoardId={leavingBoardId}
+                    favoriteUpdatingBoardId={favoriteUpdatingBoardId}
+                    onToggleFavorite={handleToggleSelectedBoardFavorite}
+                    onLeaveBoard={handleLeaveSelectedBoard}
+                    onClose={handleCloseBoardOptions}
+                />
 
                 <JoinPrivateBoardModal
                     visible={privateJoinVisible}
@@ -911,6 +1016,7 @@ type BoardListProps = {
     currentUserName?: string | null;
     privateChatProfilesByUserName: PublicProfileByUserName;
     onJoinBoard: (boardId: number) => void;
+    onOpenBoardOptions: (board: MessageBoard) => void;
 };
 
 function BoardList({
@@ -921,6 +1027,7 @@ function BoardList({
     currentUserName,
     privateChatProfilesByUserName,
     onJoinBoard,
+    onOpenBoardOptions,
 }: BoardListProps) {
     const styles = useBoardSelectionStyles();
 
@@ -950,6 +1057,7 @@ function BoardList({
                             currentUserName={currentUserName}
                             privateChatProfilesByUserName={privateChatProfilesByUserName}
                             onJoinBoard={onJoinBoard}
+                            onOpenBoardOptions={onOpenBoardOptions}
                         />
                     ))}
                 </ThemedView>
@@ -965,6 +1073,7 @@ type BoardRowProps = {
     currentUserName?: string | null;
     privateChatProfilesByUserName: PublicProfileByUserName;
     onJoinBoard: (boardId: number) => void;
+    onOpenBoardOptions: (board: MessageBoard) => void;
 };
 
 function BoardRow({
@@ -974,6 +1083,7 @@ function BoardRow({
     currentUserName,
     privateChatProfilesByUserName,
     onJoinBoard,
+    onOpenBoardOptions,
 }: BoardRowProps) {
     const theme = useTheme();
     const styles = useBoardSelectionStyles();
@@ -1002,6 +1112,20 @@ function BoardRow({
                 </ThemedText>
 
                 <ThemedView style={styles.boardMeta}>
+                    {board.isFavorite ? (
+                        <ThemedView style={styles.favoriteBadge}>
+                            <SymbolView
+                                name={{ ios: 'star.fill', android: 'star', web: 'star' }}
+                                size={13}
+                                weight="bold"
+                                tintColor={theme.actionSuccess}
+                            />
+                            <ThemedText style={styles.favoriteBadgeText}>
+                                Favorite
+                            </ThemedText>
+                        </ThemedView>
+                    ) : null}
+
                     <ThemedView style={styles.boardBadge}>
                         <ThemedText style={styles.badgeText}>
                             {boardTypeLabel}
@@ -1010,17 +1134,110 @@ function BoardRow({
                 </ThemedView>
             </ThemedView>
 
-            <Button
-                showText={true}
-                buttonText={isJoiningBoard ? 'Joining...' : 'Join'}
-                onPress={() => onJoinBoard(board.boardId)}
-                disabled={joining}
-                style={styles.joinButton}
-                textStyle={styles.buttonText}
-                backgroundColor={theme.actionPrimary}
-                borderRadius={Radius.sm}
-            />
+            <ThemedView style={styles.boardActions}>
+                <Pressable
+                    onPress={() => onOpenBoardOptions(board)}
+                    disabled={joining}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open options for ${displayBoardName}`}
+                    style={({ pressed }) => [
+                        styles.boardOptionsButton,
+                        pressed && styles.actionMenuItemPressed,
+                        joining && styles.disabledControl,
+                    ]}
+                >
+                    <SymbolView
+                        name={{ ios: 'ellipsis', android: 'more_horiz', web: 'more_horiz' }}
+                        size={22}
+                        weight="bold"
+                        tintColor={theme.text}
+                    />
+                </Pressable>
+
+                <Button
+                    showText={true}
+                    buttonText={isJoiningBoard ? 'Joining...' : 'Join'}
+                    onPress={() => onJoinBoard(board.boardId)}
+                    disabled={joining}
+                    style={styles.joinButton}
+                    textStyle={styles.buttonText}
+                    backgroundColor={theme.actionPrimary}
+                    borderRadius={Radius.sm}
+                />
+            </ThemedView>
         </ThemedView>
+    );
+}
+
+type BoardOptionsModalProps = {
+    board: MessageBoard | null;
+    leavingBoardId: number | null;
+    favoriteUpdatingBoardId: number | null;
+    onToggleFavorite: () => void;
+    onLeaveBoard: () => void;
+    onClose: () => void;
+};
+
+function BoardOptionsModal({
+    board,
+    leavingBoardId,
+    favoriteUpdatingBoardId,
+    onToggleFavorite,
+    onLeaveBoard,
+    onClose,
+}: BoardOptionsModalProps) {
+    const styles = useBoardSelectionStyles();
+    const leavingThisBoard = !!board && leavingBoardId === board.boardId;
+    const favoriteUpdatingThisBoard = !!board && favoriteUpdatingBoardId === board.boardId;
+    const optionsDisabled = leavingBoardId !== null || favoriteUpdatingBoardId !== null;
+
+    return (
+        <ActionModal
+            visible={!!board}
+            title="Board options"
+            subtitle={board?.boardName ?? ''}
+            closeAccessibilityLabel="Close board options"
+            disabled={optionsDisabled}
+            onClose={onClose}
+        >
+            <ThemedView style={styles.boardOptionsMenu}>
+                <Pressable
+                    onPress={onToggleFavorite}
+                    disabled={!board || optionsDisabled}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                        styles.boardOptionsMenuItem,
+                        styles.boardOptionsMenuItemNeutral,
+                        pressed && styles.actionMenuItemPressed,
+                        (!board || optionsDisabled) && styles.disabledControl,
+                    ]}
+                >
+                    <ThemedText style={styles.boardOptionsMenuText}>
+                        {favoriteUpdatingThisBoard
+                            ? 'Updating...'
+                            : board?.isFavorite
+                                ? 'Remove Favorite'
+                                : 'Add Favorite'}
+                    </ThemedText>
+                </Pressable>
+
+                <Pressable
+                    onPress={onLeaveBoard}
+                    disabled={!board || optionsDisabled}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                        styles.boardOptionsMenuItem,
+                        styles.boardOptionsMenuItemDanger,
+                        pressed && styles.actionMenuItemPressed,
+                        (!board || optionsDisabled) && styles.disabledControl,
+                    ]}
+                >
+                    <ThemedText style={styles.boardOptionsDangerText}>
+                        {leavingThisBoard ? 'Leaving...' : 'Leave Board'}
+                    </ThemedText>
+                </Pressable>
+            </ThemedView>
+        </ActionModal>
     );
 }
 
@@ -1067,6 +1284,21 @@ function getPrivateChatUserNamesFromBoards(
     }
 
     return Array.from(userNames.values());
+}
+
+function sortBoardsByFavorite(boards: MessageBoard[]): MessageBoard[] {
+    return boards
+        .map((board, index) => ({ board, index }))
+        .sort((left, right) => {
+            const favoriteOrder = Number(!!right.board.isFavorite) - Number(!!left.board.isFavorite);
+
+            if (favoriteOrder !== 0) {
+                return favoriteOrder;
+            }
+
+            return left.index - right.index;
+        })
+        .map(({ board }) => board);
 }
 
 function useBoardSelectionStyles() {
@@ -1251,11 +1483,87 @@ function createBoardSelectionStyles(theme: AppTheme) {
             backgroundColor: theme.surfaceInput,
         },
 
+        favoriteBadge: {
+            alignSelf: 'flex-start',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: Spacing.one,
+            borderWidth: 1,
+            borderColor: theme.actionSuccess,
+            borderRadius: Radius.round,
+            paddingHorizontal: Spacing.two,
+            paddingVertical: Spacing.half,
+            backgroundColor: theme.surfaceInput,
+        },
+
+        favoriteBadgeText: {
+            color: theme.actionSuccess,
+            fontSize: 12,
+            lineHeight: 16,
+            fontWeight: '800',
+        },
+
         badgeText: {
             color: theme.textSecondary,
             fontSize: 12,
             lineHeight: 16,
             fontWeight: '700',
+        },
+
+        boardActions: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: Spacing.two,
+            backgroundColor: theme.surfacePreview,
+        },
+
+        boardOptionsButton: {
+            width: 40,
+            height: 40,
+            borderWidth: 1,
+            borderColor: theme.borderSubtle,
+            borderRadius: Radius.sm,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.surfaceInput,
+        },
+
+        boardOptionsMenu: {
+            gap: Spacing.two,
+            backgroundColor: theme.surfaceRaised,
+        },
+
+        boardOptionsMenuItem: {
+            minHeight: 46,
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderRadius: Radius.sm,
+            paddingHorizontal: Spacing.three,
+            paddingVertical: Spacing.two,
+        },
+
+        boardOptionsMenuItemNeutral: {
+            borderColor: theme.borderAccent,
+            backgroundColor: theme.surfaceInput,
+        },
+
+        boardOptionsMenuItemDanger: {
+            borderColor: theme.actionDanger,
+            backgroundColor: theme.dangerSurface,
+        },
+
+        boardOptionsMenuText: {
+            color: theme.text,
+            fontSize: 15,
+            lineHeight: 20,
+            fontWeight: '800',
+        },
+
+        boardOptionsDangerText: {
+            color: theme.dangerText,
+            fontSize: 15,
+            lineHeight: 20,
+            fontWeight: '800',
         },
 
         joinButton: {

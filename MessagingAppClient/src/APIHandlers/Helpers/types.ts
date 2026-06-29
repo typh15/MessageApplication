@@ -6,6 +6,7 @@ export interface MessageBoard {
     visibleToPublic: boolean;
     passwordProtected: boolean;
     uniqueBoardId?: string;
+    isFavorite?: boolean;
     userRequests?: Array<{ userName: string; uniqueId?: string; address?: string }>;
 }
 

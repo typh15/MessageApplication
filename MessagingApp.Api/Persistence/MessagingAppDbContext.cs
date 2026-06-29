@@ -11,6 +11,7 @@ public sealed class MessagingAppDbContext : DbContext
     public DbSet<UserAccountRecord> UserAccounts => Set<UserAccountRecord>();
     public DbSet<MessageBoardRecord> MessageBoards => Set<MessageBoardRecord>();
     public DbSet<MessageBoardMemberRecord> MessageBoardMembers => Set<MessageBoardMemberRecord>();
+    public DbSet<MessageBoardFavoriteRecord> MessageBoardFavorites => Set<MessageBoardFavoriteRecord>();
     public DbSet<MessageBoardJoinRequestRecord> MessageBoardJoinRequests => Set<MessageBoardJoinRequestRecord>();
     public DbSet<MessageBoardInviteRecord> MessageBoardInvites => Set<MessageBoardInviteRecord>();
     public DbSet<ChatMessageRecord> ChatMessages => Set<ChatMessageRecord>();
@@ -24,6 +25,7 @@ public sealed class MessagingAppDbContext : DbContext
         ConfigureUserAccounts(modelBuilder);
         ConfigureMessageBoards(modelBuilder);
         ConfigureMessageBoardMembers(modelBuilder);
+        ConfigureMessageBoardFavorites(modelBuilder);
         ConfigureMessageBoardJoinRequests(modelBuilder);
         ConfigureMessageBoardInvites(modelBuilder);
         ConfigureChatMessages(modelBuilder);
@@ -103,6 +105,28 @@ public sealed class MessagingAppDbContext : DbContext
             entity.HasOne(member => member.User)
                 .WithMany(user => user.BoardMemberships)
                 .HasForeignKey(member => member.UserUniqueId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureMessageBoardFavorites(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<MessageBoardFavoriteRecord>(entity =>
+        {
+            entity.ToTable("MessageBoardFavorites");
+            entity.HasKey(favorite => new { favorite.BoardId, favorite.UserUniqueId });
+
+            entity.Property(favorite => favorite.UserUniqueId).HasMaxLength(64);
+            entity.Property(favorite => favorite.FavoritedAtUtc).IsRequired();
+
+            entity.HasOne(favorite => favorite.Board)
+                .WithMany(board => board.Favorites)
+                .HasForeignKey(favorite => favorite.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(favorite => favorite.User)
+                .WithMany(user => user.FavoriteBoards)
+                .HasForeignKey(favorite => favorite.UserUniqueId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

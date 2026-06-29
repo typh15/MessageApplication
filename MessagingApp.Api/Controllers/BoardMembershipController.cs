@@ -38,6 +38,21 @@ public class BoardMembershipController : ControllerBase
         return Ok();
     }
 
+    [HttpDelete("/message-boards/{boardId}/memberships/self")]
+    public async Task<IActionResult> LeaveMessageBoardAsync(
+        int boardId,
+        string uniqueId)
+    {
+        var success = await chatService.LeaveBoardAsync(boardId, uniqueId);
+
+        if (!success)
+        {
+            return BadRequest("Unable to leave message board.");
+        }
+
+        return Ok();
+    }
+
     [HttpPost("/message-boards/search")]
     public async Task<IActionResult> RequestJoinMessageBoardAsync(
         [FromBody] RequestJoinBoardRequest request)

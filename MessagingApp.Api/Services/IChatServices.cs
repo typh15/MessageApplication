@@ -11,6 +11,9 @@ public interface IChatServices
     Task<CreateActiveUserResponse?> CreateOrRefreshActiveUserAsync(string userName, string userAddress, string uniqueId);
     Task<SendMessageResponse?> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress);
     Task<bool> JoinBoardAsync(int boardId, string uniqueId, string userAddress, bool allowed);
+    Task<bool> LeaveBoardAsync(int boardId, string uniqueId);
+    Task<bool> AddFavoriteBoardAsync(int boardId, string uniqueId);
+    Task<bool> RemoveFavoriteBoardAsync(int boardId, string uniqueId);
     Task<bool> DeleteMessageAsync(string uniqueId, int boardId, int messageId);
     Task<bool> CheckIfUserCanJoin(int boardId, string uniqueId, JoinBoardRequest request);
     Task<bool> CheckIfUserCanRequest(RequestJoinBoardRequest request);

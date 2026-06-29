@@ -5,6 +5,7 @@ public class ActiveUser
     public DateTime LastActiveTime { get; set; }
     public string? UniqueId { get; set; }
     public List<int> MessageBoardIds { get; set; }
+    public List<int> FavoriteMessageBoardIds { get; set; }
     public List<int> RequestedMessageBoardIds { get; set; }
     public List<int> InvitedMessageBoardIds { get; set; }
 
@@ -15,6 +16,7 @@ public class ActiveUser
         LastActiveTime = lastActiveTime;
         UniqueId = uniqueId;
         MessageBoardIds = new List<int>();
+        FavoriteMessageBoardIds = new List<int>();
         RequestedMessageBoardIds = new List<int>();
         InvitedMessageBoardIds = new List<int>();
     }

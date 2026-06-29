@@ -184,6 +184,75 @@ class SqlActiveUserRepository : IActiveUserRepository
             .ToListAsync();
     }
 
+    public async Task<bool> AddFavoriteBoardAsync(string uniqueId, int boardId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var userExists = await dbContext.ActiveUsers
+            .AnyAsync(user => user.UniqueId == uniqueId);
+        var boardExists = await dbContext.MessageBoards
+            .AnyAsync(board => board.BoardId == boardId);
+
+        if (!userExists || !boardExists)
+        {
+            return false;
+        }
+
+        var alreadyFavorited = await dbContext.MessageBoardFavorites
+            .AnyAsync(favorite =>
+                favorite.UserUniqueId == uniqueId &&
+                favorite.BoardId == boardId);
+
+        if (alreadyFavorited)
+        {
+            return false;
+        }
+
+        dbContext.MessageBoardFavorites.Add(new MessageBoardFavoriteRecord
+        {
+            BoardId = boardId,
+            UserUniqueId = uniqueId,
+            FavoritedAtUtc = DateTime.UtcNow
+        });
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> RemoveFavoriteBoardAsync(string uniqueId, int boardId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var favorite = await dbContext.MessageBoardFavorites
+            .FirstOrDefaultAsync(existingFavorite =>
+                existingFavorite.UserUniqueId == uniqueId &&
+                existingFavorite.BoardId == boardId);
+
+        if (favorite == null)
+        {
+            return false;
+        }
+
+        dbContext.MessageBoardFavorites.Remove(favorite);
+        await dbContext.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<ActiveUser?> GetActiveUserByUserName(string userName)
     {
         if (string.IsNullOrWhiteSpace(userName))
@@ -227,6 +296,13 @@ class SqlActiveUserRepository : IActiveUserRepository
             .AsNoTracking()
             .Where(member => member.UserUniqueId == record.UniqueId)
             .Select(member => member.BoardId)
+            .ToListAsync();
+
+        activeUser.FavoriteMessageBoardIds = await dbContext.MessageBoardFavorites
+            .AsNoTracking()
+            .Where(favorite => favorite.UserUniqueId == record.UniqueId)
+            .OrderBy(favorite => favorite.FavoritedAtUtc)
+            .Select(favorite => favorite.BoardId)
             .ToListAsync();
 
         activeUser.RequestedMessageBoardIds = await dbContext.MessageBoardJoinRequests

@@ -73,4 +73,30 @@ public class MessageBoardController : ControllerBase
         return Ok(board);
     }
 
+    [HttpPost("/message-boards/{boardId}/favorite")]
+    public async Task<IActionResult> AddFavoriteBoardAsync(int boardId, string uniqueId)
+    {
+        var success = await chatService.AddFavoriteBoardAsync(boardId, uniqueId);
+
+        if (!success)
+        {
+            return BadRequest("Unable to favorite message board.");
+        }
+
+        return Ok();
+    }
+
+    [HttpDelete("/message-boards/{boardId}/favorite")]
+    public async Task<IActionResult> RemoveFavoriteBoardAsync(int boardId, string uniqueId)
+    {
+        var success = await chatService.RemoveFavoriteBoardAsync(boardId, uniqueId);
+
+        if (!success)
+        {
+            return BadRequest("Unable to remove favorite message board.");
+        }
+
+        return Ok();
+    }
+
 }

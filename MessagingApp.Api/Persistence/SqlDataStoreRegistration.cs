@@ -12,6 +12,7 @@ public static class SqlDataStoreRegistration
         "UserAccounts",
         "MessageBoards",
         "MessageBoardMembers",
+        "MessageBoardFavorites",
         "MessageBoardJoinRequests",
         "MessageBoardInvites",
         "ChatMessages",
@@ -94,6 +95,14 @@ public static class SqlDataStoreRegistration
             return;
         }
 
+        if (existingTableNames.Count > 0 &&
+            missingTableNames.Count == 1 &&
+            missingTableNames.Contains("MessageBoardFavorites"))
+        {
+            await CreateMessageBoardFavoritesTableAsync(connection);
+            return;
+        }
+
         if (existingTableNames.Count > 0)
         {
             throw new InvalidOperationException(
@@ -105,6 +114,28 @@ public static class SqlDataStoreRegistration
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var createScript = dbContext.Database.GenerateCreateScript();
         await ExecuteSqliteScriptAsync(connection, createScript);
+    }
+
+    private static async Task CreateMessageBoardFavoritesTableAsync(SqliteConnection connection)
+    {
+        await ExecuteSqliteNonQueryAsync(
+            connection,
+            """
+            CREATE TABLE "MessageBoardFavorites" (
+                "BoardId" INTEGER NOT NULL,
+                "UserUniqueId" TEXT NOT NULL,
+                "FavoritedAtUtc" TEXT NOT NULL,
+                CONSTRAINT "PK_MessageBoardFavorites" PRIMARY KEY ("BoardId", "UserUniqueId"),
+                CONSTRAINT "FK_MessageBoardFavorites_ActiveUsers_UserUniqueId" FOREIGN KEY ("UserUniqueId") REFERENCES "ActiveUsers" ("UniqueId") ON DELETE CASCADE,
+                CONSTRAINT "FK_MessageBoardFavorites_MessageBoards_BoardId" FOREIGN KEY ("BoardId") REFERENCES "MessageBoards" ("BoardId") ON DELETE CASCADE
+            )
+            """);
+
+        await ExecuteSqliteNonQueryAsync(
+            connection,
+            """
+            CREATE INDEX "IX_MessageBoardFavorites_UserUniqueId" ON "MessageBoardFavorites" ("UserUniqueId")
+            """);
     }
 
     private static string CreateSqliteConnectionString(

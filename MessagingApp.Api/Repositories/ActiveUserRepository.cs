@@ -92,4 +92,27 @@ class ActiveUserRepository : IActiveUserRepository
         }
         return Task.FromResult(user.InvitedMessageBoardIds);
     }
+
+    public Task<bool> AddFavoriteBoardAsync(string uniqueId, int boardId)
+    {
+        var user = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
+        if (user == null || user.FavoriteMessageBoardIds.Contains(boardId))
+        {
+            return Task.FromResult(false);
+        }
+
+        user.FavoriteMessageBoardIds.Add(boardId);
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> RemoveFavoriteBoardAsync(string uniqueId, int boardId)
+    {
+        var user = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
+        if (user == null)
+        {
+            return Task.FromResult(false);
+        }
+
+        return Task.FromResult(user.FavoriteMessageBoardIds.Remove(boardId));
+    }
 }

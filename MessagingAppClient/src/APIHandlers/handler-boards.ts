@@ -80,6 +80,48 @@ export async function joinMessageBoard(boardId: number, password?: string): Prom
     return true;
 }
 
+export async function addFavoriteBoard(boardId: number): Promise<boolean> {
+    const uniqueId = await getStoredUniqueId();
+
+    const apiUrlAddress = await apiUrl(
+        `/message-boards/${boardId}/favorite?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
+
+    const response = await fetch(apiUrlAddress, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Favorite board failed:', txt);
+        throw new Error('Favorite board failed');
+    }
+
+    return true;
+}
+
+export async function removeFavoriteBoard(boardId: number): Promise<boolean> {
+    const uniqueId = await getStoredUniqueId();
+
+    const apiUrlAddress = await apiUrl(
+        `/message-boards/${boardId}/favorite?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
+
+    const response = await fetch(apiUrlAddress, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Remove favorite board failed:', txt);
+        throw new Error('Remove favorite board failed');
+    }
+
+    return true;
+}
+
 export async function getMessageBoardData(boardId: number): Promise<MessageBoard> {
     const uniqueId = await getStoredUniqueId();
 

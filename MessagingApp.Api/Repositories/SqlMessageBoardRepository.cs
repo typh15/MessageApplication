@@ -769,6 +769,13 @@ class SqlMessageBoardRepository : IMessageBoardRepository
             .Select(member => member.BoardId)
             .ToListAsync();
 
+        activeUser.FavoriteMessageBoardIds = await dbContext.MessageBoardFavorites
+            .AsNoTracking()
+            .Where(favorite => favorite.UserUniqueId == record.UniqueId)
+            .OrderBy(favorite => favorite.FavoritedAtUtc)
+            .Select(favorite => favorite.BoardId)
+            .ToListAsync();
+
         activeUser.RequestedMessageBoardIds = await dbContext.MessageBoardJoinRequests
             .AsNoTracking()
             .Where(request => request.UserUniqueId == record.UniqueId)

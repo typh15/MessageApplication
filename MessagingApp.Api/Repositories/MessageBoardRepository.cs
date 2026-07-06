@@ -4,35 +4,13 @@ class MessageBoardRepository : IMessageBoardRepository
 {
     private readonly List<MessageBoard> messageBoards = new List<MessageBoard>();
     private readonly List<MessageBoardDataResponse> dataResponse = new List<MessageBoardDataResponse>();
+    private readonly object messageWriteLock = new object();
     private readonly PasswordHasher<MessageBoard> passwordHasher = new PasswordHasher<MessageBoard>();
 
     public int GetNextBoardId()
     {
         return messageBoards.Count > 0 ? messageBoards.Max(a => a.BoardId) + 1 : 1;
     }
-
-    public int GetNextMessageId(int boardid)
-    {
-        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
-        if (messageBoard != null && messageBoard.ChatMessages.Length > 0)
-        {
-            return messageBoard.ChatMessages.Max(m => m.Id) + 1;
-        }
-        return 1;
-    }
-
-    public Task<bool> UpdateMostRecentMessageHashAsync(int boardid, int newHash)
-    {
-        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
-        if (messageBoard != null)
-        {
-            messageBoard.MostRecentMessageHash = newHash;
-            return Task.FromResult(true);
-        }
-        return Task.FromResult(false);
-    }
-
-
 
     public Task<MessageBoardDataResponse?> CreateMessageBoardAsync(ActiveUser user, string boardName, bool visibleToPublic, bool passwordProtected, string password)
     {
@@ -107,32 +85,48 @@ class MessageBoardRepository : IMessageBoardRepository
         return Task.FromResult<ChatMessage?>(null);
     }
 
-    public Task<bool> AddMessageToBoardAsync(int boardid, ChatMessage chatMessage)
+    public Task<AppendMessageToBoardResult> AppendMessageToBoardAsync(
+        int boardid,
+        string fromUserName,
+        string fromDisplayName,
+        DateTime clientTimestamp,
+        DateTime serverTimestamp,
+        string content,
+        MessageTypeEnum messageType,
+        string? imageId)
     {
-        var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
-        if (messageBoard != null)
+        lock (messageWriteLock)
         {
+            var messageBoard = messageBoards.FirstOrDefault(a => a.BoardId == boardid);
+            if (messageBoard == null)
+            {
+                return Task.FromResult(AppendMessageToBoardResult.Failure(
+                    AppendMessageToBoardFailureReason.BoardNotFound,
+                    $"Message board {boardid} was not found."));
+            }
+
+            var messageId = messageBoard.ChatMessages.Length > 0
+                ? messageBoard.ChatMessages.Max(m => m.Id) + 1
+                : 1;
+
             var newChatMessage = new ChatMessage(
-                chatMessage.Id,
-                chatMessage.FromUserName,
-                chatMessage.FromDisplayName,
+                messageId,
+                fromUserName,
+                fromDisplayName,
                 boardid,
-                chatMessage.ClientTimestamp,
-                chatMessage.ServerTimestamp,
-                chatMessage.Content,
-                chatMessage.MessageType,
-                chatMessage.ImageId
-            );
-            messageBoard.ChatMessages = messageBoard.ChatMessages.Append(newChatMessage).ToArray();
+                clientTimestamp,
+                serverTimestamp,
+                content,
+                messageType,
+                imageId);
+
             newChatMessage.AssignGlobalId();
-            
-            UpdateMostRecentMessageHashAsync(boardid, newChatMessage.Hash);
+            messageBoard.ChatMessages = messageBoard.ChatMessages.Append(newChatMessage).ToArray();
+            messageBoard.MostRecentMessageHash = newChatMessage.Hash;
 
-            return Task.FromResult(true);
+            return Task.FromResult(AppendMessageToBoardResult.Success(newChatMessage));
         }
-        return Task.FromResult(false);
     }
-
 
     public Task<bool> UpdateBoardNameAsync(int boardid, string newName)
     {

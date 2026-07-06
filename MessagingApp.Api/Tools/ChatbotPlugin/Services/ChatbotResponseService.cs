@@ -171,13 +171,21 @@ public sealed class ChatbotResponseService : IChatbotResponseService
     {
         for (var attempt = 1; attempt <= SaveBotReplyAttemptCount; attempt++)
         {
-            var botMessage = CreateBotReplyMessage(board.BoardId, chatbotOptions, reply);
-            var messageWasAdded = await messageBoardRepository.AddMessageToBoardAsync(
+            var now = DateTime.UtcNow;
+            var appendResult = await messageBoardRepository.AppendMessageToBoardAsync(
                 board.BoardId,
-                botMessage);
+                chatbotOptions.BotUserName.Trim(),
+                chatbotOptions.BotUserName.Trim(),
+                now,
+                now,
+                reply,
+                MessageTypeEnum.text,
+                null);
 
-            if (messageWasAdded)
+            if (appendResult.Succeeded)
             {
+                var botMessage = appendResult.Message!;
+
                 await pushNotificationServices.SendAsync(
                     messageNotificationServices.CreateMessagePushNotificationRequest(
                         board,
@@ -187,36 +195,25 @@ public sealed class ChatbotResponseService : IChatbotResponseService
                 return botMessage;
             }
 
+            if (appendResult.FailureReason == AppendMessageToBoardFailureReason.BoardNotFound)
+            {
+                logger.LogWarning(
+                    "Unable to save chatbot reply because board {BoardId} no longer exists.",
+                    board.BoardId);
+
+                return null;
+            }
+
             logger.LogWarning(
-                "Unable to save chatbot reply to board {BoardId} on attempt {Attempt} of {AttemptCount}.",
+                "Unable to save chatbot reply to board {BoardId} on attempt {Attempt} of {AttemptCount}. Reason {Reason}. Detail: {FailureMessage}",
                 board.BoardId,
                 attempt,
-                SaveBotReplyAttemptCount);
+                SaveBotReplyAttemptCount,
+                appendResult.FailureReason,
+                appendResult.FailureMessage);
         }
 
         return null;
-    }
-
-    private ChatMessage CreateBotReplyMessage(
-        int boardId,
-        ChatbotOptions chatbotOptions,
-        string reply)
-    {
-        var messageId = messageBoardRepository.GetNextMessageId(boardId);
-        var now = DateTime.UtcNow;
-        var botMessage = new ChatMessage(
-            messageId,
-            chatbotOptions.BotUserName.Trim(),
-            chatbotOptions.BotUserName.Trim(),
-            boardId,
-            now,
-            now,
-            reply,
-            MessageTypeEnum.text,
-            null);
-
-        botMessage.AssignGlobalId();
-        return botMessage;
     }
 
     private async Task TrySummarizeIfThresholdAsync(

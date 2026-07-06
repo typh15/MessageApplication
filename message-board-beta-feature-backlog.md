@@ -30,16 +30,16 @@ The scope estimates are now aligned to the source as of 2026-07-06: an Expo/Reac
 ### API
 
 - `Program.cs` registers controllers, CORS, EF/SQLite startup, repository selection, and singleton services.
-- Controllers are thin and route most board, membership, message, account, image, and push work into `IChatServices`, `IAccountServices`, `IImageServices`, and `IPushNotificationServices`.
+- Controllers are thin and route board, membership, message, profile, account, image, chatbot, and push work into focused services such as `IMessageServices`, `IMessageBoardServices`, `IBoardMembershipServices`, `IMessageNotificationServices`, `IAccountServices`, `IImageServices`, `IChatbotResponseQueue`, and `IPushNotificationServices`.
 - Repository implementations are selected by configuration. SQLite is the beta default; memory repositories remain available for comparison/debugging.
 - The SQLite EF model currently includes active users, user accounts, message boards, board members, favorites, join requests, invites, chat messages, images, push subscriptions, and chatbot conversation summaries.
 - Board summaries are returned as `MessageBoardDataResponse` with `boardId`, `boardName`, `visibleToPublic`, `passwordProtected`, `uniqueBoardId`, and `isFavorite`.
 - `GET /message-boards?uniqueId=...` currently returns public boards plus private boards the user belongs to. It does not split joined vs browse results.
 - `POST /message-boards` currently resolves the active user from `UniqueId`, then the SQL repository adds both the board row and creator membership row in one `SaveChangesAsync` call.
-- Messages have per-board IDs plus a `globalId` built as `{BoardId}-{Id}`. The SQLite schema has a unique index on `globalId`.
+- Messages have per-board IDs plus a `globalId` built as `{BoardId}-{Id}`. Message writes now go through `AppendMessageToBoardAsync`, which assigns the next per-board message ID and persists the row in one repository operation. The SQLite schema has a unique index on `globalId`.
 - There is no dedicated read-state table and no in-app notification table.
-- Expo push infrastructure exists and is currently used for message notifications to board members other than the sender.
-- API errors are often string `BadRequest`, `NotFound`, or `Unauthorized` responses. There is not yet global exception middleware or request correlation IDs.
+- Expo push infrastructure exists and is currently used for message notifications to board members other than the sender. Message push and chatbot side effects are best-effort after the message is saved.
+- `RequestDiagnosticsMiddleware` now assigns/echoes `X-Request-Id`, logs failed requests, and returns a structured JSON response for unexpected server errors. Many expected controller errors are still plain string `BadRequest`, `NotFound`, `Unauthorized`, or `403` responses.
 
 ### Backlog implications
 
@@ -49,6 +49,7 @@ The scope estimates are now aligned to the source as of 2026-07-06: an Expo/Reac
 - User invite search can reuse public profile data, but partial search should be server-filtered and board-aware.
 - A backend message automation plugin host could generalize the chatbot pattern into reusable handlers for polls, prompts, summaries, moderation notices, and scheduled beta events.
 - Replies, mentions, and reactions all extend message persistence and response shapes, so they should follow reliability, tests, unread state, and notifications.
+- The intermittent networking item is partially addressed on the backend. Remaining work should focus on client-side diagnostics, tests, and any production logs that still show unexplained failures.
 
 ---
 
@@ -56,7 +57,7 @@ The scope estimates are now aligned to the source as of 2026-07-06: an Expo/Reac
 
 | Priority | Item | Primary reason |
 | --- | --- | --- |
-| P0 | Diagnose intermittent `Network response not ok` failures | Reliability issue affecting basic messaging and polling |
+| P0 | Finish intermittent `Network response not ok` follow-up | Backend diagnostics/send hardening are in progress; remaining work is client diagnostics, tests, and production verification |
 | P0 | Verify and harden creator membership contract | Source indicates this should already work; beta report needs reproduction and tests |
 | P0 | Push notifications for invites and join requests | Backend-only improvement visible to installed clients |
 | P0 | Server-side moderation, anti-spam, and reliability guardrails | Immediate backend-only protection for a small beta |
@@ -77,7 +78,7 @@ The scope estimates are now aligned to the source as of 2026-07-06: an Expo/Reac
 
 For the next beta release, the most useful scope would be:
 
-1. Diagnose the intermittent networking error.
+1. Finish intermittent networking follow-up: client diagnostics, tests, and production verification.
 2. Reproduce and test the creator-membership report against the current SQL and memory paths.
 3. Add backend-only push notifications for invites and join requests.
 4. Add server-side moderation, anti-spam, and reliability guardrails.
@@ -95,12 +96,14 @@ Replies, mentions, and reactions are good follow-up features, but each adds mess
 
 # P0 — Reliability and Data Consistency
 
-## 1. Intermittent `Network response not ok` Error
+## 1. Intermittent `Network response not ok` Error Follow-Up
 
 **Type:** Bug  
-**Likely scope:** Client and backend investigation  
+**Likely scope:** Client diagnostics, backend verification, and tests
 **Priority:** P0  
-**Estimated complexity:** Medium until diagnosed
+**Estimated complexity:** Small to medium after backend hardening
+
+**Status:** Partially addressed on the backend. Request diagnostics, request IDs, structured unexpected-error responses, side-effect isolation, duplicate-send suppression, and atomic message append are now in place. The remaining work is to improve the installed client diagnostics path when a response is not OK, add tests around the hardened backend contracts, and verify whether beta logs still show unexplained failures.
 
 ### User-facing problem
 
@@ -111,8 +114,11 @@ A request sometimes fails with a generic `Network response not ok` error. Retryi
 - `handler-messages.ts` logs the server response body, then throws the generic `Network response was not ok` error.
 - Other API handler modules also repeat local `fetch` and error handling instead of sharing one request helper.
 - `useMessages()` polls every 500 ms, while board/details/join-request hooks poll every 5000 ms.
-- `Program.cs` does not currently configure global exception handling or request correlation IDs.
-- Controllers often return useful string bodies, but the client does not consistently expose status code, route, request body context, or server error text.
+- `RequestDiagnosticsMiddleware` now assigns or echoes `X-Request-Id`, logs non-success requests, and returns structured JSON for unexpected server errors.
+- `MessagesController` now maps message-send failures to status-aware responses such as `401`, `403`, `404`, and `500`.
+- `MessageServices` now suppresses repeated message sends from the same user to the same board with the same type/content/image within a five-second server-side window.
+- Human message sends and chatbot replies now use repository-level `AppendMessageToBoardAsync` instead of separately calculating and saving the next message ID.
+- Controllers often return useful string bodies, but the client does not consistently expose status code, route, request body context, request ID, or server error text.
 
 ### Possible causes
 
@@ -144,27 +150,32 @@ A request sometimes fails with a generic `Network response not ok` error. Retryi
 - Consider a visible `Retry` action rather than silently resubmitting.
 - Prevent duplicate sends while retrying.
 
-### Backend work
+### Completed backend work
 
-- Add global exception handling.
-- Add request correlation IDs.
-- Log:
+- Added global unexpected-exception handling through `RequestDiagnosticsMiddleware`.
+- Added backend request correlation IDs through `X-Request-Id`.
+- Added backend logging for:
   - route
   - status code
-  - session ID or user identity
-  - board ID
   - request ID
   - exception details
-  - database errors
-- Return meaningful status codes:
+  - request duration
+- Added status-aware message-send responses:
   - `400` invalid input
   - `401` invalid session
   - `403` unauthorized board access
   - `404` missing board or message
-  - `409` duplicate or conflict
   - `500` unexpected server failure
-- Investigate SQLite locking or concurrency errors.
-- Consider idempotency for message creation using a client-generated message ID.
+- Isolated push notification and chatbot side effects so they do not fail an already-saved message.
+- Added duplicate-send suppression for likely message retries.
+- Added repository-level message append so SQL assigns the next board-local message ID and inserts in one transaction.
+
+### Remaining backend work
+
+- Add send-message integration tests for valid sends, invalid sessions, non-members, duplicate retries, and simulated persistence failures.
+- Investigate any remaining SQLite locking or concurrency errors in beta logs.
+- Consider true idempotency for message creation using a client-generated message ID in a later client release.
+- Move expected error responses toward a shared structured error shape over time.
 
 ### Acceptance criteria
 
@@ -179,7 +190,7 @@ A request sometimes fails with a generic `Network response not ok` error. Retryi
 - Valid message request stores exactly one message.
 - Invalid session returns `401`.
 - Non-member send returns `403`.
-- Duplicate request ID does not create a duplicate message.
+- Duplicate retry within the backend duplicate window does not create a duplicate message.
 - Simulated database failure returns a structured error.
 
 ---
@@ -200,8 +211,8 @@ A user creates a board, but the creator is not shown as a member, or another use
 The current source already intends to add the creator as a board member:
 
 1. `POST /message-boards` receives `CreateMessageBoardRequest`.
-2. `MessageBoardController` passes `UniqueId` into `IChatServices.CreateMessageBoardAsync`.
-3. `ChatServices` resolves the active user by `UniqueId`.
+2. `MessageBoardsController` passes `UniqueId` into `IMessageBoardServices.CreateMessageBoardAsync`.
+3. `MessageBoardServices` resolves the active user by `UniqueId`.
 4. `SqlMessageBoardRepository.CreateMessageBoardAsync` adds both a `MessageBoardRecord` and a `MessageBoardMemberRecord`.
 5. The SQL repository saves both rows in one `SaveChangesAsync` call.
 6. The memory repository also creates the board with the creator in `ActiveUsers`.
@@ -275,9 +286,9 @@ Users should be notified when they are invited to a board or when a board they b
 
 - Push subscriptions are stored through `/push-notifications/subscriptions`.
 - `PushNotificationServices.SendAsync()` can send to one or more `UniqueId` recipients.
-- `ChatServices.SendMessageToBoardAsync()` already sends push notifications for new messages.
-- `ChatServices.InviteUserJoinRequest()` creates board invites.
-- `ChatServices.AddUserToRequests()` creates board join requests.
+- `MessageServices.SendMessageToBoardAsync()` already sends best-effort push notifications for new messages.
+- `BoardMembershipServices.InviteUserJoinRequest()` creates board invites.
+- `BoardMembershipServices.AddUserToRequests()` creates board join requests.
 - The installed client can deep-link only from notification payload `boardId` to `Chat-Page`; it cannot yet route directly to Account or an invite-accept screen.
 
 ### Backend work
@@ -348,15 +359,18 @@ The current client already sends all message, image, invite, join, and board-cre
 ### Current source wiring
 
 - Message creation already validates active session, board membership, image ownership, and message type.
+- Message creation suppresses likely duplicate retries for the same user, board, content, message type, and image ID within a five-second server-side window.
+- Message persistence now assigns the next per-board message ID and inserts the message through one repository append operation.
+- Message push notifications and chatbot queueing are best-effort side effects after the message is saved.
 - Image upload already enforces supported image types and size limits.
 - SQLite has a unique index on message `GlobalId`, but there is no client-generated idempotency key.
 - There is no rate limiting or slow mode for messages, board creation, invites, join requests, or login attempts.
-- Error responses are not yet structured consistently, so moderation errors should return clear plain-text bodies until shared client error handling exists.
+- Error responses are not yet structured consistently across every controller, so moderation errors should return clear plain-text bodies until shared client error handling exists.
 
 ### Backend work
 
 - Add per-user/per-board message rate limits, such as short-window burst limits and a small sustained-message limit.
-- Add duplicate-send protection for same user, same board, same content/image within a short window.
+- Keep the current duplicate-send protection for same user, same board, same content/image within a short window, then replace or augment it with client-generated idempotency keys in a later client release.
 - Enforce message content rules server-side:
   - trim content
   - reject empty text messages
@@ -364,7 +378,7 @@ The current client already sends all message, image, invite, join, and board-cre
   - optionally block a small configurable word/phrase list for beta safety
 - Add invite/join-request rate limits to prevent notification spam.
 - Add board-creation rate limits to prevent board list clutter.
-- Ensure push notification failures never block the originating action.
+- Ensure invite and join-request push notification failures never block the originating action.
 - Add structured logs for moderation decisions: user, board, action, rule, and request ID once request IDs exist.
 - Prefer `429 Too Many Requests` for rate limits and `400 Bad Request` for invalid content.
 
@@ -423,7 +437,7 @@ Home should not contain:
 - Home is `Homescreen-Board-Select-Page.tsx`.
 - Home calls `useBoards()`, which calls `APIHandler.getMessageBoards()`.
 - `getMessageBoards()` calls `GET /message-boards?uniqueId=...`.
-- `ChatServices.GetMessageBoardsAsync()` returns public boards plus private boards the user belongs to.
+- `MessageBoardServices.GetMessageBoardsAsync()` returns public boards plus private boards the user belongs to.
 - `MessageBoardDataResponse` includes `isFavorite`, but not `isMember`.
 - `BoardRow` always renders `Join`, so Home currently cannot reliably render joined boards as `Open`.
 
@@ -651,7 +665,7 @@ Push notifications already exist. This feature should reuse the existing Expo pu
 - Board invites are currently shown in `Account-Page.tsx` via `GET /active-users/{uniqueId}/invites`.
 - Join requests are currently shown from chat/join-request screens via `GET /message-boards/{boardId}/requests?memberUniqueId=...`.
 - Push subscription endpoints exist under `/push-notifications/subscriptions`.
-- `ChatServices.SendMessageToBoardAsync()` currently calls `pushNotificationServices.SendAsync()` for new message notifications.
+- `MessageServices.SendMessageToBoardAsync()` currently calls `pushNotificationServices.SendAsync()` best-effort for new message notifications.
 - There is no in-app notification endpoint or table.
 - There is no read/unread state yet, so notification badge counts should not depend on unread messages until item 5 exists.
 
@@ -1065,8 +1079,9 @@ Do not implement native contact linking in the near term. A public handle, QR co
 ## Milestone 1 — Reliability and Tests
 
 - [ ] Add shared client API request helper
-- [ ] Add global ASP.NET exception handling
+- [x] Add global ASP.NET exception handling
 - [ ] Add correlation IDs to client and backend logs
+- [x] Add backend request IDs and response `X-Request-Id`
 - [ ] Include status/body/route/request ID in client request failures
 - [ ] Preserve unsent message text after request failure
 - [ ] Reproduce intermittent send failure
@@ -1075,12 +1090,15 @@ Do not implement native contact linking in the near term. A public handle, QR co
 - [ ] Add board membership authorization tests
 - [ ] Verify current create-board creator membership in SQL and memory repositories
 - [ ] Add create-board membership contract tests
-- [ ] Add idempotent message send or duplicate-send protection
+- [x] Add backend duplicate-send protection for likely message retries
+- [x] Add atomic repository append for message creation
+- [ ] Add true idempotent message send with client-generated request/message IDs
 - [ ] Add push notifications for board invites
 - [ ] Add push notifications for join requests
-- [ ] Ensure push sender failures do not fail source actions
+- [x] Ensure message push sender failures do not fail saved messages
+- [ ] Ensure invite and join-request push sender failures do not fail source actions
 - [ ] Add message rate limiting
-- [ ] Add duplicate-send protection
+- [x] Add duplicate-send protection
 - [ ] Add invite and join-request rate limiting
 - [ ] Add moderation/rejection logs
 - [ ] Sketch backend message automation plugin host

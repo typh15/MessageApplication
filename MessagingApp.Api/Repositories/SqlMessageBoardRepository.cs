@@ -1,3 +1,5 @@
+using System.Data;
+using System.Data.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,33 +21,6 @@ class SqlMessageBoardRepository : IMessageBoardRepository
             .Max();
 
         return (maxBoardId ?? 0) + 1;
-    }
-
-    public int GetNextMessageId(int boardid)
-    {
-        using var dbContext = dbContextFactory.CreateDbContext();
-        var maxMessageId = dbContext.ChatMessages
-            .Where(message => message.BoardId == boardid)
-            .Select(message => (int?)message.MessageId)
-            .Max();
-
-        return (maxMessageId ?? 0) + 1;
-    }
-
-    public async Task<bool> UpdateMostRecentMessageHashAsync(int boardid, int newHash)
-    {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var messageBoard = await dbContext.MessageBoards
-            .FirstOrDefaultAsync(board => board.BoardId == boardid);
-
-        if (messageBoard == null)
-        {
-            return false;
-        }
-
-        messageBoard.MostRecentMessageHash = newHash;
-        await dbContext.SaveChangesAsync();
-        return true;
     }
 
     public async Task<MessageBoardDataResponse?> CreateMessageBoardAsync(
@@ -187,60 +162,88 @@ class SqlMessageBoardRepository : IMessageBoardRepository
         return chatMessage == null ? null : CreateChatMessage(chatMessage);
     }
 
-    public async Task<bool> AddMessageToBoardAsync(int boardid, ChatMessage chatMessage)
+    public async Task<AppendMessageToBoardResult> AppendMessageToBoardAsync(
+        int boardid,
+        string fromUserName,
+        string fromDisplayName,
+        DateTime clientTimestamp,
+        DateTime serverTimestamp,
+        string content,
+        MessageTypeEnum messageType,
+        string? imageId)
     {
-        if (chatMessage == null)
-        {
-            return false;
-        }
-
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var messageBoard = await dbContext.MessageBoards
-            .FirstOrDefaultAsync(board => board.BoardId == boardid);
-
-        if (messageBoard == null)
-        {
-            return false;
-        }
-
-        var newChatMessage = new ChatMessage(
-            chatMessage.Id,
-            chatMessage.FromUserName,
-            chatMessage.FromDisplayName,
-            boardid,
-            chatMessage.ClientTimestamp,
-            chatMessage.ServerTimestamp,
-            chatMessage.Content,
-            chatMessage.MessageType,
-            chatMessage.ImageId);
-
-        newChatMessage.AssignGlobalId();
-
-        dbContext.ChatMessages.Add(new ChatMessageRecord
-        {
-            BoardId = boardid,
-            MessageId = newChatMessage.Id,
-            FromUserName = newChatMessage.FromUserName,
-            FromDisplayName = newChatMessage.FromDisplayName,
-            ClientTimestamp = newChatMessage.ClientTimestamp,
-            ServerTimestamp = newChatMessage.ServerTimestamp,
-            Content = newChatMessage.Content,
-            GlobalId = newChatMessage.GlobalId,
-            Hash = newChatMessage.Hash,
-            MessageType = (int)newChatMessage.MessageType,
-            ImageId = newChatMessage.ImageId
-        });
-
-        messageBoard.MostRecentMessageHash = newChatMessage.Hash;
-
         try
         {
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+            await using var transaction =
+                await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+            var messageBoard = await dbContext.MessageBoards
+                .FirstOrDefaultAsync(board => board.BoardId == boardid);
+
+            if (messageBoard == null)
+            {
+                return AppendMessageToBoardResult.Failure(
+                    AppendMessageToBoardFailureReason.BoardNotFound,
+                    $"Message board {boardid} was not found.");
+            }
+
+            var maxMessageId = await dbContext.ChatMessages
+                .Where(message => message.BoardId == boardid)
+                .Select(message => (int?)message.MessageId)
+                .MaxAsync();
+
+            var newChatMessage = new ChatMessage(
+                (maxMessageId ?? 0) + 1,
+                fromUserName,
+                fromDisplayName,
+                boardid,
+                clientTimestamp,
+                serverTimestamp,
+                content,
+                messageType,
+                imageId);
+
+            newChatMessage.AssignGlobalId();
+
+            dbContext.ChatMessages.Add(new ChatMessageRecord
+            {
+                BoardId = boardid,
+                MessageId = newChatMessage.Id,
+                FromUserName = newChatMessage.FromUserName,
+                FromDisplayName = newChatMessage.FromDisplayName,
+                ClientTimestamp = newChatMessage.ClientTimestamp,
+                ServerTimestamp = newChatMessage.ServerTimestamp,
+                Content = newChatMessage.Content,
+                GlobalId = newChatMessage.GlobalId,
+                Hash = newChatMessage.Hash,
+                MessageType = (int)newChatMessage.MessageType,
+                ImageId = newChatMessage.ImageId
+            });
+
+            messageBoard.MostRecentMessageHash = newChatMessage.Hash;
             await dbContext.SaveChangesAsync();
-            return true;
+            await transaction.CommitAsync();
+
+            return AppendMessageToBoardResult.Success(newChatMessage);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
-            return false;
+            return AppendMessageToBoardResult.Failure(
+                AppendMessageToBoardFailureReason.PersistenceFailed,
+                ex.Message);
+        }
+        catch (DbException ex)
+        {
+            return AppendMessageToBoardResult.Failure(
+                AppendMessageToBoardFailureReason.PersistenceFailed,
+                ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return AppendMessageToBoardResult.Failure(
+                AppendMessageToBoardFailureReason.PersistenceFailed,
+                ex.Message);
         }
     }
 

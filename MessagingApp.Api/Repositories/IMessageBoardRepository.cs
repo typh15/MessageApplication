@@ -1,8 +1,6 @@
 public interface IMessageBoardRepository
 {
     int GetNextBoardId();
-    int GetNextMessageId(int boardid);
-    Task<bool> UpdateMostRecentMessageHashAsync(int boardid, int newHash);
     Task<MessageBoardDataResponse?> CreateMessageBoardAsync(ActiveUser user, string boardName, bool visibleToPublic, bool passwordProtected, string password);
     Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync();
     Task<MessageBoard?> GetMessageBoardByIdAsync(int id);
@@ -10,7 +8,15 @@ public interface IMessageBoardRepository
     Task<MessageBoard?> GetMessageBoardByUIdAsync(string uniqueBoardId);
     Task<MessageBoardDataResponse?> GetMessageBoardDataByIdAsync(int id);
     Task<ChatMessage?> GetMessageByIdAsync(int boardid, int id);
-    Task<bool> AddMessageToBoardAsync(int boardid, ChatMessage chatMessage);
+    Task<AppendMessageToBoardResult> AppendMessageToBoardAsync(
+        int boardid,
+        string fromUserName,
+        string fromDisplayName,
+        DateTime clientTimestamp,
+        DateTime serverTimestamp,
+        string content,
+        MessageTypeEnum messageType,
+        string? imageId);
     Task<bool> UpdateBoardNameAsync(int boardid, string newName);
     Task<bool> DeleteMessageBoardAsync(int boardid);
     Task<bool> AddUserToBoardAsync(int boardid, ActiveUser user);

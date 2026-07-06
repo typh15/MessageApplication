@@ -150,6 +150,8 @@ public class MessageServices : IMessageServices
             request.ImageId = null;
         }
 
+        request.Content ??= string.Empty;
+
         var duplicateMessage = FindRecentDuplicateMessage(board, activeUser.UserName, request);
         if (duplicateMessage != null)
         {
@@ -165,18 +167,20 @@ public class MessageServices : IMessageServices
 
         for (var attempt = 1; attempt <= MessagePersistAttemptCount; attempt++)
         {
-            var chatMessage = CreateChatMessage(
-                messageBoardRepository.GetNextMessageId(boardId),
+            var appendResult = await messageBoardRepository.AppendMessageToBoardAsync(
+                boardId,
                 activeUser.UserName,
                 displayName,
-                boardId,
-                request);
+                request.LocalTimestamp,
+                DateTime.UtcNow,
+                request.Content,
+                request.MessageType,
+                request.ImageId);
 
-            var messageWasAdded =
-                await messageBoardRepository.AddMessageToBoardAsync(boardId, chatMessage);
-
-            if (messageWasAdded)
+            if (appendResult.Succeeded)
             {
+                var chatMessage = appendResult.Message!;
+
                 await TrySendMessagePushNotificationAsync(
                     board,
                     chatMessage,
@@ -186,6 +190,15 @@ public class MessageServices : IMessageServices
 
                 return SendMessageServiceResult.Success(
                     new SendMessageResponse(uniqueId, chatMessage));
+            }
+
+            if (appendResult.FailureReason == AppendMessageToBoardFailureReason.BoardNotFound)
+            {
+                return RejectSendMessage(
+                    boardId,
+                    uniqueId,
+                    SendMessageFailureReason.BoardNotFound,
+                    $"Message board {boardId} was not found.");
             }
 
             var refreshedBoard = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
@@ -210,10 +223,12 @@ public class MessageServices : IMessageServices
             }
 
             logger.LogWarning(
-                "Send message persistence attempt {Attempt} failed for board {BoardId}, user {UniqueId}.",
+                "Send message persistence attempt {Attempt} failed for board {BoardId}, user {UniqueId}. Reason {Reason}. Detail: {FailureMessage}",
                 attempt,
                 boardId,
-                uniqueId);
+                uniqueId,
+                appendResult.FailureReason,
+                appendResult.FailureMessage);
         }
 
         logger.LogError(
@@ -289,29 +304,6 @@ public class MessageServices : IMessageServices
             .OrderByDescending(message => message.ServerTimestamp)
             .ThenByDescending(message => message.Id)
             .FirstOrDefault();
-    }
-
-    private static ChatMessage CreateChatMessage(
-        int messageId,
-        string fromUserName,
-        string displayName,
-        int boardId,
-        CreateChatMessageRequest request)
-    {
-        var chatMessage = new ChatMessage(
-            messageId,
-            fromUserName,
-            displayName,
-            boardId,
-            request.LocalTimestamp,
-            DateTime.UtcNow,
-            request.Content,
-            request.MessageType,
-            request.ImageId);
-
-        chatMessage.AssignGlobalId();
-
-        return chatMessage;
     }
 
     private async Task TrySendMessagePushNotificationAsync(

@@ -25,6 +25,48 @@ public class MessageNotificationServices : IMessageNotificationServices
             });
     }
 
+    public PushNotificationSendRequest CreateBoardInvitePushNotificationRequest(
+        MessageBoard board,
+        ActiveUser invitedByUser,
+        ActiveUser invitedUser)
+    {
+        var inviterName = GetUserNotificationName(invitedByUser);
+
+        return new PushNotificationSendRequest(
+            [invitedUser.UniqueId ?? string.Empty],
+            invitedByUser.UniqueId,
+            $"Invite to {board.BoardName}",
+            $"{inviterName} invited you to join {board.BoardName}.",
+            new Dictionary<string, object?>
+            {
+                ["type"] = "board_invite",
+                ["inviteBoardId"] = board.BoardId,
+                ["uniqueBoardId"] = board.UniqueBoardId,
+                ["invitedByUserName"] = invitedByUser.UserName,
+            });
+    }
+
+    public PushNotificationSendRequest CreateJoinRequestPushNotificationRequest(
+        MessageBoard board,
+        ActiveUser requestingUser)
+    {
+        var requesterName = GetUserNotificationName(requestingUser);
+
+        return new PushNotificationSendRequest(
+            board.ActiveUsers.Select(user => user.UniqueId ?? string.Empty),
+            requestingUser.UniqueId,
+            $"Join request for {board.BoardName}",
+            $"{requesterName} requested to join {board.BoardName}.",
+            new Dictionary<string, object?>
+            {
+                ["type"] = "join_request",
+                ["boardId"] = board.BoardId,
+                ["requestedUserName"] = requestingUser.UserName,
+                ["requestedUserUniqueId"] = requestingUser.UniqueId,
+                ["url"] = $"/Chat-Page?boardId={board.BoardId}",
+            });
+    }
+
     private static string GetMessageNotificationPreview(ChatMessage chatMessage)
     {
         if (chatMessage.MessageType == MessageTypeEnum.image)
@@ -38,6 +80,13 @@ public class MessageNotificationServices : IMessageNotificationServices
         }
 
         return TruncateNotificationText(chatMessage.Content);
+    }
+
+    private static string GetUserNotificationName(ActiveUser activeUser)
+    {
+        return string.IsNullOrWhiteSpace(activeUser.UserName)
+            ? "Someone"
+            : activeUser.UserName;
     }
 
     private static string TruncateNotificationText(string value)

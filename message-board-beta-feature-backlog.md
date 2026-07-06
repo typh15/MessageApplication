@@ -59,7 +59,7 @@ The scope estimates are now aligned to the source as of 2026-07-06: an Expo/Reac
 | --- | --- | --- |
 | P0 | Finish intermittent `Network response not ok` follow-up | Backend diagnostics/send hardening are in progress; remaining work is client diagnostics, tests, and production verification |
 | P0 | Verify and harden creator membership contract | Source indicates this should already work; beta report needs reproduction and tests |
-| P0 | Push notifications for invites and join requests | Backend-only improvement visible to installed clients |
+| P0 | Verify push notifications for invites and join requests | Backend-only implementation is in place; needs beta-device verification |
 | P0 | Server-side moderation, anti-spam, and reliability guardrails | Immediate backend-only protection for a small beta |
 | P1 | Joined-boards-only home screen | Requires an explicit membership-aware board summary contract |
 | P1 | Separate Browse Boards page | Separates discovery from Home after joined/browse API split |
@@ -80,7 +80,7 @@ For the next beta release, the most useful scope would be:
 
 1. Finish intermittent networking follow-up: client diagnostics, tests, and production verification.
 2. Reproduce and test the creator-membership report against the current SQL and memory paths.
-3. Add backend-only push notifications for invites and join requests.
+3. Verify backend-only push notifications for invites and join requests on beta devices.
 4. Add server-side moderation, anti-spam, and reliability guardrails.
 5. Add an explicit board-summary membership contract.
 6. Change Home to joined boards only.
@@ -271,6 +271,8 @@ Creating a board should:
 **Priority:** P0
 **Estimated complexity:** Small to medium
 
+**Status:** Backend implementation is in place. Successful board invites now send best-effort push notifications to invited users, and successful join requests now send best-effort push notifications to existing board members. Remaining work is beta-device verification and optional approval/denial notifications.
+
 ### User-facing goal
 
 Users should be notified when they are invited to a board or when a board they belong to has a pending join request, without requiring a client reinstall.
@@ -289,12 +291,13 @@ Users should be notified when they are invited to a board or when a board they b
 - `MessageServices.SendMessageToBoardAsync()` already sends best-effort push notifications for new messages.
 - `BoardMembershipServices.InviteUserJoinRequest()` creates board invites.
 - `BoardMembershipServices.AddUserToRequests()` creates board join requests.
+- `MessageNotificationServices` now centralizes payload creation for message, board-invite, and join-request push notifications.
 - The installed client can deep-link only from notification payload `boardId` to `Chat-Page`; it cannot yet route directly to Account or an invite-accept screen.
 
 ### Backend work
 
-- Send a push notification to the invited user when `InviteUserJoinRequest()` successfully creates an invite.
-- Send push notifications to existing board members when `AddUserToRequests()` successfully creates a join request.
+- Verify push delivery to the invited user when `InviteUserJoinRequest()` successfully creates an invite.
+- Verify push delivery to existing board members when `AddUserToRequests()` successfully creates a join request.
 - Optionally send a push notification to the requester when a join request is approved or denied.
 - Use the existing push sender rather than adding a second delivery mechanism.
 - Centralize push payload creation for membership events so it is not duplicated across service methods.
@@ -308,8 +311,9 @@ Invite notification:
 ```json
 {
   "type": "board_invite",
-  "boardId": null,
-  "inviteBoardId": 12
+  "inviteBoardId": 12,
+  "uniqueBoardId": "ABCD1234",
+  "invitedByUserName": "Brittany"
 }
 ```
 
@@ -318,7 +322,10 @@ Join-request notification:
 ```json
 {
   "type": "join_request",
-  "boardId": 12
+  "boardId": 12,
+  "requestedUserName": "Brittany",
+  "requestedUserUniqueId": "user-guid",
+  "url": "/Chat-Page?boardId=12"
 }
 ```
 
@@ -1093,10 +1100,10 @@ Do not implement native contact linking in the near term. A public handle, QR co
 - [x] Add backend duplicate-send protection for likely message retries
 - [x] Add atomic repository append for message creation
 - [ ] Add true idempotent message send with client-generated request/message IDs
-- [ ] Add push notifications for board invites
-- [ ] Add push notifications for join requests
+- [x] Add push notifications for board invites
+- [x] Add push notifications for join requests
 - [x] Ensure message push sender failures do not fail saved messages
-- [ ] Ensure invite and join-request push sender failures do not fail source actions
+- [x] Ensure invite and join-request push sender failures do not fail source actions
 - [ ] Add message rate limiting
 - [x] Add duplicate-send protection
 - [ ] Add invite and join-request rate limiting

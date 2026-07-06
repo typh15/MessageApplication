@@ -4,17 +4,26 @@ public class BoardMembershipServices : IBoardMembershipServices
     private readonly IActiveUserRepository activeUserRepository;
     private readonly IUserAccountRepository userAccountRepository;
     private readonly IChatbotBotUserService chatbotBotUserService;
+    private readonly IPushNotificationServices pushNotificationServices;
+    private readonly IMessageNotificationServices messageNotificationServices;
+    private readonly ILogger<BoardMembershipServices> logger;
 
     public BoardMembershipServices(
         IMessageBoardRepository messageBoardRepository,
         IActiveUserRepository activeUserRepository,
         IUserAccountRepository userAccountRepository,
-        IChatbotBotUserService chatbotBotUserService)
+        IChatbotBotUserService chatbotBotUserService,
+        IPushNotificationServices pushNotificationServices,
+        IMessageNotificationServices messageNotificationServices,
+        ILogger<BoardMembershipServices> logger)
     {
         this.messageBoardRepository = messageBoardRepository;
         this.activeUserRepository = activeUserRepository;
         this.userAccountRepository = userAccountRepository;
         this.chatbotBotUserService = chatbotBotUserService;
+        this.pushNotificationServices = pushNotificationServices;
+        this.messageNotificationServices = messageNotificationServices;
+        this.logger = logger;
     }
 
     public async Task<bool> JoinBoardAsync(
@@ -201,7 +210,14 @@ public class BoardMembershipServices : IBoardMembershipServices
             return false;
         }
 
-        await messageBoardRepository.AddUserToRequestedListAsync(boardId, activeUser);
+        var requestWasAdded =
+            await messageBoardRepository.AddUserToRequestedListAsync(boardId, activeUser);
+        if (!requestWasAdded)
+        {
+            return false;
+        }
+
+        await TrySendJoinRequestPushNotificationAsync(board, activeUser);
         return true;
     }
 
@@ -459,7 +475,15 @@ public class BoardMembershipServices : IBoardMembershipServices
             return false;
         }
 
-        return await messageBoardRepository.AddUserToInvitesListAsync(boardId, invitedUser);
+        var inviteWasAdded =
+            await messageBoardRepository.AddUserToInvitesListAsync(boardId, invitedUser);
+        if (!inviteWasAdded)
+        {
+            return false;
+        }
+
+        await TrySendBoardInvitePushNotificationAsync(board, member, invitedUser);
+        return true;
     }
 
     public async Task<List<MessageBoardInviteResponse>?> GetUserInvitesAsync(string uniqueId)
@@ -632,5 +656,73 @@ public class BoardMembershipServices : IBoardMembershipServices
         }
 
         return await messageBoardRepository.AddUserToBoardAsync(boardId, botUser);
+    }
+
+    private async Task TrySendBoardInvitePushNotificationAsync(
+        MessageBoard board,
+        ActiveUser invitedByUser,
+        ActiveUser invitedUser)
+    {
+        try
+        {
+            var result = await pushNotificationServices.SendAsync(
+                messageNotificationServices.CreateBoardInvitePushNotificationRequest(
+                    board,
+                    invitedByUser,
+                    invitedUser));
+
+            if (!result.AcceptedByPushService)
+            {
+                logger.LogWarning(
+                    "Board invite push notification send failed for board {BoardId}, invited user {InvitedUserUniqueId}. Requested {RequestedRecipientCount}, subscriptions {SubscriptionCount}, sent {SentCount}. Error: {ErrorMessage}",
+                    board.BoardId,
+                    invitedUser.UniqueId,
+                    result.RequestedRecipientCount,
+                    result.SubscriptionCount,
+                    result.SentCount,
+                    result.ErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Board invite push notification side effect failed for board {BoardId}, invited user {InvitedUserUniqueId}. Invite was already saved.",
+                board.BoardId,
+                invitedUser.UniqueId);
+        }
+    }
+
+    private async Task TrySendJoinRequestPushNotificationAsync(
+        MessageBoard board,
+        ActiveUser requestingUser)
+    {
+        try
+        {
+            var result = await pushNotificationServices.SendAsync(
+                messageNotificationServices.CreateJoinRequestPushNotificationRequest(
+                    board,
+                    requestingUser));
+
+            if (!result.AcceptedByPushService)
+            {
+                logger.LogWarning(
+                    "Join request push notification send failed for board {BoardId}, requesting user {RequestingUserUniqueId}. Requested {RequestedRecipientCount}, subscriptions {SubscriptionCount}, sent {SentCount}. Error: {ErrorMessage}",
+                    board.BoardId,
+                    requestingUser.UniqueId,
+                    result.RequestedRecipientCount,
+                    result.SubscriptionCount,
+                    result.SentCount,
+                    result.ErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Join request push notification side effect failed for board {BoardId}, requesting user {RequestingUserUniqueId}. Join request was already saved.",
+                board.BoardId,
+                requestingUser.UniqueId);
+        }
     }
 }

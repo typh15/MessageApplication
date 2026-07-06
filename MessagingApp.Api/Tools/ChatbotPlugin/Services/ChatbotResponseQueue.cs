@@ -16,7 +16,11 @@ public sealed class ChatbotResponseQueue : BackgroundService, IChatbotResponseQu
         this.logger = logger;
     }
 
-    public void QueueResponse(int boardId, int messageId, string senderUniqueId)
+    public void QueueResponse(
+        int boardId,
+        int messageId,
+        string senderUniqueId,
+        string? publicImageBaseUrl = null)
     {
         if (string.IsNullOrWhiteSpace(senderUniqueId))
         {
@@ -24,7 +28,11 @@ public sealed class ChatbotResponseQueue : BackgroundService, IChatbotResponseQu
         }
 
         var queued = queue.Writer.TryWrite(
-            new ChatbotMessageWorkItem(boardId, messageId, senderUniqueId));
+            new ChatbotMessageWorkItem(
+                boardId,
+                messageId,
+                senderUniqueId,
+                publicImageBaseUrl));
 
         if (!queued)
         {

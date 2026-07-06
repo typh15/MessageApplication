@@ -9,7 +9,7 @@ There are two different URL concerns:
 | `Chatbot:BaseUrl` | URL `MessagingApp.Api` uses to call `ChatbotInterfaceAPI` | `http://127.0.0.1:8000` when both APIs run on the same machine |
 | `Chatbot:PublicImageBaseUrl` | Public HTTPS origin the LLM can fetch image URLs from | The Tailscale Funnel URL for the machine hosting `MessagingApp.Api` |
 
-Do not commit a temporary development laptop Funnel URL into `appsettings.Beta.json`. Supply the public image URL as an environment variable or script argument on the machine that is actually hosting Beta.
+Do not commit a temporary development laptop Funnel URL into `appsettings.Beta.json`. Supply the public image URL as an environment variable or script argument on the machine that is actually hosting Beta. Image chatbot requests prefer inline Base64 image data, so OpenAI does not have to fetch beta images over the public internet. If inline image data cannot be created, `MessagingApp.Api` can fall back to `Chatbot:PublicImageBaseUrl` or an inferred HTTPS request origin.
 
 ## Development flow
 
@@ -92,7 +92,8 @@ Open a fresh terminal after setting persistent variables.
 ## Expected behavior
 
 - Text messages to boards containing `Chatbot` produce bot replies.
-- Image messages send `{Chatbot:PublicImageBaseUrl}/images/{imageId}` to `ChatbotInterfaceAPI`.
-- If `Chatbot:PublicImageBaseUrl` is missing, text chat still works and the API logs a warning for image messages.
+- Image messages send inline Base64 image data to `ChatbotInterfaceAPI`, which then passes it to OpenAI as an image data URL.
+- If inline image data cannot be loaded, the API falls back to `{Chatbot:PublicImageBaseUrl}/images/{imageId}` or an inferred public HTTPS request origin.
+- If no image input can be created, text chat still works and the API logs a warning for image messages.
 - Bot messages do not trigger another chatbot reply.
 - Recent messages and stored summaries are included by the backend.

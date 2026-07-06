@@ -9,6 +9,7 @@ public sealed class ChatbotResponseService : IChatbotResponseService
     private readonly IOptions<ChatbotOptions> options;
     private readonly IMessageBoardRepository messageBoardRepository;
     private readonly IConversationSummaryRepository conversationSummaryRepository;
+    private readonly IImageServices imageServices;
     private readonly IChatbotClient chatbotClient;
     private readonly IChatbotBotUserService chatbotBotUserService;
     private readonly IPushNotificationServices pushNotificationServices;
@@ -19,6 +20,7 @@ public sealed class ChatbotResponseService : IChatbotResponseService
         IOptions<ChatbotOptions> options,
         IMessageBoardRepository messageBoardRepository,
         IConversationSummaryRepository conversationSummaryRepository,
+        IImageServices imageServices,
         IChatbotClient chatbotClient,
         IChatbotBotUserService chatbotBotUserService,
         IPushNotificationServices pushNotificationServices,
@@ -28,6 +30,7 @@ public sealed class ChatbotResponseService : IChatbotResponseService
         this.options = options;
         this.messageBoardRepository = messageBoardRepository;
         this.conversationSummaryRepository = conversationSummaryRepository;
+        this.imageServices = imageServices;
         this.chatbotClient = chatbotClient;
         this.chatbotBotUserService = chatbotBotUserService;
         this.pushNotificationServices = pushNotificationServices;
@@ -88,19 +91,21 @@ public sealed class ChatbotResponseService : IChatbotResponseService
 
         var conversationId = CreateConversationId(board.BoardId);
         var storedSummary = await conversationSummaryRepository.GetSummaryAsync(conversationId);
-        var chatRequest = CreateChatRequest(
+        var chatRequest = await CreateChatRequestAsync(
             chatbotOptions,
             board,
             currentMessage,
             workItem.SenderUniqueId,
-            storedSummary);
+            storedSummary,
+            workItem.PublicImageBaseUrl,
+            cancellationToken);
 
         if (currentMessage.MessageType == MessageTypeEnum.image &&
             !string.IsNullOrWhiteSpace(currentMessage.ImageId) &&
             chatRequest.ImageUrls.Count == 0)
         {
             logger.LogWarning(
-                "Chatbot image message {MessageId} on board {BoardId} has no public image URL because Chatbot:PublicImageBaseUrl is not configured.",
+                "Chatbot image message {MessageId} on board {BoardId} has no public image URL because no Chatbot:PublicImageBaseUrl was configured or inferred from the request.",
                 currentMessage.Id,
                 board.BoardId);
         }
@@ -142,12 +147,14 @@ public sealed class ChatbotResponseService : IChatbotResponseService
         }
     }
 
-    private ChatbotChatRequest CreateChatRequest(
+    private async Task<ChatbotChatRequest> CreateChatRequestAsync(
         ChatbotOptions chatbotOptions,
         MessageBoard board,
         ChatMessage currentMessage,
         string senderUniqueId,
-        ConversationSummary? storedSummary)
+        ConversationSummary? storedSummary,
+        string? inferredPublicImageBaseUrl,
+        CancellationToken cancellationToken)
     {
         return new ChatbotChatRequest
         {
@@ -159,7 +166,11 @@ public sealed class ChatbotResponseService : IChatbotResponseService
                 board,
                 currentMessage.Id,
                 chatbotOptions),
-            ImageUrls = CreateImageUrls(currentMessage, chatbotOptions)
+            ImageUrls = await CreateImageInputsAsync(
+                currentMessage,
+                chatbotOptions,
+                inferredPublicImageBaseUrl,
+                cancellationToken)
         };
     }
 
@@ -331,21 +342,74 @@ public sealed class ChatbotResponseService : IChatbotResponseService
         };
     }
 
-    private static List<string> CreateImageUrls(
+    private async Task<List<string>> CreateImageInputsAsync(
         ChatMessage message,
-        ChatbotOptions chatbotOptions)
+        ChatbotOptions chatbotOptions,
+        string? inferredPublicImageBaseUrl,
+        CancellationToken cancellationToken)
     {
         if (message.MessageType != MessageTypeEnum.image ||
-            string.IsNullOrWhiteSpace(message.ImageId) ||
-            string.IsNullOrWhiteSpace(chatbotOptions.PublicImageBaseUrl))
+            string.IsNullOrWhiteSpace(message.ImageId))
+        {
+            return [];
+        }
+
+        var dataUrl = await TryCreateImageDataUrlAsync(message.ImageId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(dataUrl))
+        {
+            return [dataUrl];
+        }
+
+        var publicImageBaseUrl = ResolvePublicImageBaseUrl(
+            chatbotOptions,
+            inferredPublicImageBaseUrl);
+
+        if (string.IsNullOrWhiteSpace(publicImageBaseUrl))
         {
             return [];
         }
 
         return
         [
-            $"{chatbotOptions.PublicImageBaseUrl.TrimEnd('/')}/images/{Uri.EscapeDataString(message.ImageId)}"
+            $"{publicImageBaseUrl.TrimEnd('/')}/images/{Uri.EscapeDataString(message.ImageId)}"
         ];
+    }
+
+    private async Task<string?> TryCreateImageDataUrlAsync(
+        string imageId,
+        CancellationToken cancellationToken)
+    {
+        var imageDownload = await imageServices.GetImageFileAsync(imageId);
+        if (imageDownload == null)
+        {
+            return null;
+        }
+
+        using (imageDownload.Content)
+        using (var memoryStream = new MemoryStream())
+        {
+            await imageDownload.Content.CopyToAsync(memoryStream, cancellationToken);
+
+            if (memoryStream.Length <= 0)
+            {
+                return null;
+            }
+
+            var base64Image = Convert.ToBase64String(memoryStream.ToArray());
+            return $"data:{imageDownload.HttpContentType};base64,{base64Image}";
+        }
+    }
+
+    private static string ResolvePublicImageBaseUrl(
+        ChatbotOptions chatbotOptions,
+        string? inferredPublicImageBaseUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(chatbotOptions.PublicImageBaseUrl))
+        {
+            return chatbotOptions.PublicImageBaseUrl;
+        }
+
+        return inferredPublicImageBaseUrl ?? string.Empty;
     }
 
     private static string CreateCurrentMessageText(ChatMessage message)

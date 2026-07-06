@@ -37,12 +37,13 @@ public class MessagesController : ControllerBase
     {
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+        var publicImageBaseUrl = CreatePublicImageBaseUrl(HttpContext.Request);
 
         var result = await messageServices.SendMessageToBoardAsync(
             boardId,
             request,
-            userAddress
-            
+            userAddress,
+            publicImageBaseUrl
         );
 
         if (!result.Succeeded)
@@ -73,6 +74,30 @@ public class MessagesController : ControllerBase
         }
 
         return Ok();
+    }
+
+    private static string? CreatePublicImageBaseUrl(HttpRequest request)
+    {
+        if (!request.Host.HasValue ||
+            !string.Equals(request.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var host = request.Host.Host;
+        if (string.IsNullOrWhiteSpace(host) || IsLocalHost(host))
+        {
+            return null;
+        }
+
+        return $"{Uri.UriSchemeHttps}://{request.Host.Value}";
+    }
+
+    private static bool IsLocalHost(string host)
+    {
+        return string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(host, "::1", StringComparison.OrdinalIgnoreCase) ||
+               host.StartsWith("127.", StringComparison.OrdinalIgnoreCase);
     }
 
 

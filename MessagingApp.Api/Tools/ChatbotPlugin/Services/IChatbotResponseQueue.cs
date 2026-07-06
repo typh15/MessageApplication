@@ -1,4 +1,8 @@
 public interface IChatbotResponseQueue
 {
-    void QueueResponse(int boardId, int messageId, string senderUniqueId);
+    void QueueResponse(
+        int boardId,
+        int messageId,
+        string senderUniqueId,
+        string? publicImageBaseUrl = null);
 }

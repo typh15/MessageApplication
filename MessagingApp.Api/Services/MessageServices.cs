@@ -51,7 +51,8 @@ public class MessageServices : IMessageServices
     public async Task<SendMessageServiceResult> SendMessageToBoardAsync(
         int boardId,
         CreateChatMessageRequest request,
-        string userAddress)
+        string userAddress,
+        string? publicImageBaseUrl = null)
     {
         var uniqueId = request.UniqueId ?? string.Empty;
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
@@ -186,7 +187,11 @@ public class MessageServices : IMessageServices
                     chatMessage,
                     uniqueId);
 
-                TryQueueChatbotResponse(boardId, chatMessage.Id, uniqueId);
+                TryQueueChatbotResponse(
+                    boardId,
+                    chatMessage.Id,
+                    uniqueId,
+                    publicImageBaseUrl);
 
                 return SendMessageServiceResult.Success(
                     new SendMessageResponse(uniqueId, chatMessage));
@@ -341,11 +346,19 @@ public class MessageServices : IMessageServices
         }
     }
 
-    private void TryQueueChatbotResponse(int boardId, int messageId, string senderUniqueId)
+    private void TryQueueChatbotResponse(
+        int boardId,
+        int messageId,
+        string senderUniqueId,
+        string? publicImageBaseUrl)
     {
         try
         {
-            chatbotResponseQueue.QueueResponse(boardId, messageId, senderUniqueId);
+            chatbotResponseQueue.QueueResponse(
+                boardId,
+                messageId,
+                senderUniqueId,
+                publicImageBaseUrl);
         }
         catch (Exception ex)
         {

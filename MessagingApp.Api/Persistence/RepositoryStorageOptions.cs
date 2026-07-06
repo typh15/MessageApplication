@@ -7,6 +7,7 @@ public sealed class RepositoryStorageOptions
     public string UserAccounts { get; set; } = RepositoryStorageProviders.Sqlite;
     public string Images { get; set; } = RepositoryStorageProviders.Sqlite;
     public string PushNotifications { get; set; } = RepositoryStorageProviders.Sqlite;
+    public string ConversationSummaries { get; set; } = RepositoryStorageProviders.Sqlite;
 
     public bool UsesSqliteRepositories()
     {
@@ -28,6 +29,10 @@ public sealed class RepositoryStorageOptions
                 StringComparison.OrdinalIgnoreCase) ||
             string.Equals(
                 PushNotifications,
+                RepositoryStorageProviders.Sqlite,
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                ConversationSummaries,
                 RepositoryStorageProviders.Sqlite,
                 StringComparison.OrdinalIgnoreCase);
     }

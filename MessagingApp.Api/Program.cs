@@ -17,6 +17,8 @@ builder.Services.AddControllers();
 builder.Services.AddSqlDataStore(builder.Configuration, builder.Environment);
 builder.Services.Configure<ImageStorageOptions>(
     builder.Configuration.GetSection(ImageStorageOptions.SectionName));
+builder.Services.Configure<ChatbotOptions>(
+    builder.Configuration.GetSection(ChatbotOptions.SectionName));
 builder.Services.AddMessagingAppRepositories(builder.Configuration);
 
 builder.Services.AddSingleton<IChatServices, ChatServices>();
@@ -28,6 +30,27 @@ builder.Services.AddSingleton<IImageServices, ImageServices>();
 builder.Services.AddSingleton<HttpClient>();
 builder.Services.AddSingleton<IExpoPushNotificationClient, ExpoPushNotificationClient>();
 builder.Services.AddSingleton<IPushNotificationServices, PushNotificationServices>();
+builder.Services.AddHttpClient<IChatbotClient, ChatbotClient>((serviceProvider, httpClient) =>
+{
+    var chatbotOptions = serviceProvider
+        .GetRequiredService<IOptions<ChatbotOptions>>()
+        .Value;
+
+    if (Uri.TryCreate(chatbotOptions.BaseUrl, UriKind.Absolute, out var baseUri))
+    {
+        httpClient.BaseAddress = baseUri;
+    }
+
+    httpClient.Timeout = TimeSpan.FromSeconds(
+        Math.Max(1, chatbotOptions.RequestTimeoutSeconds));
+});
+builder.Services.AddSingleton<IChatbotBotUserService, ChatbotBotUserService>();
+builder.Services.AddSingleton<IChatbotResponseService, ChatbotResponseService>();
+builder.Services.AddSingleton<ChatbotResponseQueue>();
+builder.Services.AddSingleton<IChatbotResponseQueue>(serviceProvider =>
+    serviceProvider.GetRequiredService<ChatbotResponseQueue>());
+builder.Services.AddHostedService(serviceProvider =>
+    serviceProvider.GetRequiredService<ChatbotResponseQueue>());
 
 if (useForwardedHeaders)
 {

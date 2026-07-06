@@ -98,6 +98,14 @@ public sealed class ChatMessageRecord
     public MessageBoardRecord? Board { get; set; }
 }
 
+public sealed class ConversationSummaryRecord
+{
+    public string ConversationId { get; set; } = string.Empty;
+    public string SummaryText { get; set; } = string.Empty;
+    public int SummaryThroughMessageId { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+}
+
 public sealed class ImageRecord
 {
     public string ImageId { get; set; } = string.Empty;

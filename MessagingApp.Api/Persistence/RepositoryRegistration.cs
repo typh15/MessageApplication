@@ -160,6 +160,36 @@ public static class RepositoryRegistration
                 $"Use '{RepositoryStorageProviders.Memory}' or '{RepositoryStorageProviders.Sqlite}'.");
         });
 
+        services.AddSingleton<IConversationSummaryRepository>(serviceProvider =>
+        {
+            var options = serviceProvider
+                .GetRequiredService<IOptions<RepositoryStorageOptions>>()
+                .Value;
+
+            if (string.Equals(
+                options.ConversationSummaries,
+                RepositoryStorageProviders.Memory,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return new ConversationSummaryRepository();
+            }
+
+            if (string.Equals(
+                options.ConversationSummaries,
+                RepositoryStorageProviders.Sqlite,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                var dbContextFactory =
+                    serviceProvider.GetRequiredService<IDbContextFactory<MessagingAppDbContext>>();
+
+                return new SqlConversationSummaryRepository(dbContextFactory);
+            }
+
+            throw new InvalidOperationException(
+                $"Unsupported conversation summary repository storage '{options.ConversationSummaries}'. " +
+                $"Use '{RepositoryStorageProviders.Memory}' or '{RepositoryStorageProviders.Sqlite}'.");
+        });
+
         return services;
     }
 }

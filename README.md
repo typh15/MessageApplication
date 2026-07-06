@@ -41,6 +41,7 @@ MessagingApp/
 |   |-- Services/                           Chat and board business rules
 |   |-- Tools/
 |   |   |-- AccountPlugin/                  Account/profile models, endpoints, repositories
+|   |   |-- ChatbotPlugin/                  Bot identity, ChatbotInterfaceAPI client, summaries
 |   |   |-- ImagePlugin/                    Image upload, metadata, storage, serving
 |   |   `-- PushNotificationsPlugin/        Expo push subscription storage and sending
 |   |-- appsettings*.json                   Runtime, persistence, beta server config
@@ -58,7 +59,7 @@ MessagingApp/
 |   `-- assets/                             App images and Expo assets
 |
 |-- docs/                                   Persistence, beta funnel, and planning notes
-|-- Build_Run_Api.bat                       Build and start the API
+|-- Build_Run_Api_Local.bat                 Build and start the API locally
 |-- Run_Api_Beta_Funnel.bat                 Start the beta API through Tailscale Funnel
 |-- Stop_Api_Beta_Funnel.bat                Stop the beta API/Funnel helper
 |-- Run_Client_Test.bat                     Start Expo with a configured packager host
@@ -88,7 +89,7 @@ MessagingApp/
 - Expo push notification subscription registration and storage.
 - Android, iOS, and web support through Expo.
 - Static web export for Cloudflare or another static host.
-- SQLite-backed persistence by default for active users, accounts, boards, messages, images, and push notification subscriptions.
+- SQLite-backed persistence by default for active users, accounts, boards, messages, images, chatbot summaries, and push notification subscriptions.
 
 ## Tech Stack
 
@@ -177,14 +178,14 @@ https://desktop-ke30sl9.tail915de.ts.net
 ## Helper Scripts
 
 ```powershell
-Build_Run_Api.bat
+Build_Run_Api_Local.bat
 Run_Api_Beta_Funnel.bat
 Stop_Api_Beta_Funnel.bat
 Run_Client_Test.bat
 Build_Client.bat
 ```
 
-- `Build_Run_Api.bat` builds and runs the API.
+- `Build_Run_Api_Local.bat` builds and runs the API.
 - `Run_Api_Beta_Funnel.bat` configures Tailscale Funnel and starts the API in the `Beta` environment on `http://127.0.0.1:5121`.
 - `Run_Api_Beta_Funnel.ps1` can be run directly with or without its optional `-ConfigureFunnel` switch.
 - `Stop_Api_Beta_Funnel.bat` stops the hidden beta API runner and can reset Funnel through `-ResetFunnel`.
@@ -219,7 +220,8 @@ Current default storage settings:
     "MessageBoards": "Sqlite",
     "UserAccounts": "Sqlite",
     "Images": "Sqlite",
-    "PushNotifications": "Sqlite"
+    "PushNotifications": "Sqlite",
+    "ConversationSummaries": "Sqlite"
   },
   "ImageStorage": {
     "ClearStoredImagesOnStartup": false
@@ -277,6 +279,12 @@ Current local beta bind URL:
 
 ```text
 http://127.0.0.1:5121
+```
+
+Chatbot development and deployment runbooks are separated in:
+
+```text
+docs/chatbot-development-deployment.md
 ```
 
 ## Persistence Notes
@@ -525,7 +533,7 @@ dotnet run
 Start the beta API:
 
 ```powershell
-.\Run_Api_Beta_Funnel.bat
+.\Run_Api_Beta_Funnel.bat -PublicImageBaseUrl "https://your-desktop.tailnet.ts.net"
 ```
 
 Start the Expo client:
@@ -570,6 +578,7 @@ The active Android beta distribution process is manual private sharing through G
 ## Documentation
 
 - `MessagingAppClient/README.md` covers the Expo client specifically.
+- `docs/chatbot-development-deployment.md` separates local chatbot testing from desktop beta deployment.
 - `docs/sql-persistence-reference.md` explains the repository storage switches, EF Core schema, and migration/debugging approach.
 - `docs/sql-persistence-plan.md` tracks persistence migration planning.
 - `docs/tailscale-funnel-beta.md` documents the beta Funnel endpoint and operations.

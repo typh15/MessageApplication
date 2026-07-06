@@ -1,9 +1,9 @@
 # Tailscale Funnel beta API
 
-This machine is configured for the beta API endpoint:
+The public Beta API endpoint is the Tailscale Funnel URL for the machine currently hosting `MessagingApp.Api`.
 
 ```text
-https://desktop-ke30sl9.tail915de.ts.net
+https://your-desktop.tailnet.ts.net
 ```
 
 The public Funnel forwards HTTPS traffic to the API running locally on:
@@ -15,7 +15,7 @@ http://127.0.0.1:5121
 If Tailscale reports that Funnel is not enabled on the tailnet, enable it here:
 
 ```text
-https://login.tailscale.com/f/funnel?node=n7JraYMv6B11CNTRL
+Use the enablement URL printed by `tailscale funnel --bg --yes 5121` if Funnel is not enabled.
 ```
 
 Then run:
@@ -24,12 +24,14 @@ Then run:
 tailscale funnel --bg --yes 5121
 ```
 
+For chatbot image messages, `Chatbot:PublicImageBaseUrl` must match this public HTTPS origin. See `docs/chatbot-development-deployment.md` for the separate development and deployment flows.
+
 ## Start the beta server
 
 From the repository root:
 
 ```powershell
-.\Run_Api_Beta_Funnel.bat
+.\Run_Api_Beta_Funnel.bat -PublicImageBaseUrl "https://your-desktop.tailnet.ts.net"
 ```
 
 The script:
@@ -57,7 +59,7 @@ To also clear the public Funnel mapping:
 ## Health check
 
 ```powershell
-curl.exe https://desktop-ke30sl9.tail915de.ts.net/health
+curl.exe https://your-desktop.tailnet.ts.net/health
 ```
 
 ## Useful Tailscale commands
@@ -73,7 +75,7 @@ tailscale serve status
 Use this server URL from the Expo registration screen:
 
 ```text
-https://desktop-ke30sl9.tail915de.ts.net
+https://your-desktop.tailnet.ts.net
 ```
 
 The beta API uses `MessagingApp.Api/appsettings.Beta.json`, which keeps SQLite and stored images persistent across API restarts.

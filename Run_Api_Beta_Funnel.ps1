@@ -1,6 +1,8 @@
 param(
     [int]$Port = 5121,
-    [switch]$ConfigureFunnel
+    [switch]$ConfigureFunnel,
+    [string]$PublicImageBaseUrl = "",
+    [string]$ChatbotBaseUrl = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +34,26 @@ if (Test-BetaApiHealth) {
 
 $env:ASPNETCORE_ENVIRONMENT = "Beta"
 $env:ASPNETCORE_URLS = "http://127.0.0.1:$Port"
+
+if (-not [string]::IsNullOrWhiteSpace($PublicImageBaseUrl)) {
+    $env:Chatbot__PublicImageBaseUrl = $PublicImageBaseUrl.TrimEnd("/")
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ChatbotBaseUrl)) {
+    $env:Chatbot__BaseUrl = $ChatbotBaseUrl
+}
+
+if ([string]::IsNullOrWhiteSpace($env:Chatbot__PublicImageBaseUrl)) {
+    Write-Warning "Chatbot image messages need Chatbot__PublicImageBaseUrl set to this machine's public Funnel URL."
+    Write-Warning "Example: .\Run_Api_Beta_Funnel.ps1 -ConfigureFunnel -PublicImageBaseUrl https://desktop-name.tailnet.ts.net"
+}
+else {
+    Write-Host "Chatbot public image base URL: $env:Chatbot__PublicImageBaseUrl"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($env:Chatbot__BaseUrl)) {
+    Write-Host "Chatbot API base URL override: $env:Chatbot__BaseUrl"
+}
 
 dotnet build $apiProject
 

@@ -5,19 +5,25 @@ public class ChatServices : IChatServices
     private readonly IImageServices imageServices;
     private readonly IUserAccountRepository userAccountRepository;
     private readonly IPushNotificationServices pushNotificationServices;
+    private readonly IChatbotResponseQueue chatbotResponseQueue;
+    private readonly IChatbotBotUserService chatbotBotUserService;
 
 
     public ChatServices(IMessageBoardRepository messageBoardRepository, 
                         IActiveUserRepository activeUserRepository,
                         IImageServices imageServices,
                         IUserAccountRepository userAccountRepository,
-                        IPushNotificationServices pushNotificationServices)
+                        IPushNotificationServices pushNotificationServices,
+                        IChatbotResponseQueue chatbotResponseQueue,
+                        IChatbotBotUserService chatbotBotUserService)
     {
         this.messageBoardRepository = messageBoardRepository;
         this.activeUserRepository = activeUserRepository;
         this.imageServices = imageServices;
         this.userAccountRepository = userAccountRepository;
         this.pushNotificationServices = pushNotificationServices;
+        this.chatbotResponseQueue = chatbotResponseQueue;
+        this.chatbotBotUserService = chatbotBotUserService;
     }
 
     public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
@@ -336,6 +342,8 @@ public class ChatServices : IChatServices
             board,
             chatMessage,
             uniqueId));
+
+        chatbotResponseQueue.QueueResponse(boardId, chatMessage.Id, uniqueId);
 
         return new SendMessageResponse(uniqueId, chatMessage);
     }
@@ -886,16 +894,8 @@ public class ChatServices : IChatServices
 
         var activeUsers = await activeUserRepository.GetAllActiveUsersAsync();
         var member = activeUsers.FirstOrDefault(user => user.UniqueId == memberUniqueId);
-        var invitedUser = activeUsers.FirstOrDefault(user =>
-            string.Equals(user.UserName, inviteUserName, StringComparison.OrdinalIgnoreCase)
-        );
 
-        if (member == null || invitedUser == null)
-        {
-            return false;
-        }
-
-        if (member.UniqueId == invitedUser.UniqueId)
+        if (member == null)
         {
             return false;
         }
@@ -903,6 +903,25 @@ public class ChatServices : IChatServices
         var memberIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(boardId, member);
 
         if (!memberIsInBoard)
+        {
+            return false;
+        }
+
+        if (chatbotBotUserService.IsConfiguredBotUserName(inviteUserName))
+        {
+            return await AddConfiguredBotToBoardAsync(boardId, member);
+        }
+
+        var invitedUser = activeUsers.FirstOrDefault(user =>
+            string.Equals(user.UserName, inviteUserName, StringComparison.OrdinalIgnoreCase)
+        );
+
+        if (invitedUser == null)
+        {
+            return false;
+        }
+
+        if (member.UniqueId == invitedUser.UniqueId)
         {
             return false;
         }
@@ -916,6 +935,27 @@ public class ChatServices : IChatServices
         }
 
         return await messageBoardRepository.AddUserToInvitesListAsync(boardId, invitedUser);
+    }
+
+    private async Task<bool> AddConfiguredBotToBoardAsync(int boardId, ActiveUser member)
+    {
+        var botUser = await chatbotBotUserService.EnsureBotUserAsync();
+        if (botUser == null ||
+            string.Equals(member.UniqueId, botUser.UniqueId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var botIsAlreadyInBoard = await messageBoardRepository.CheckUserInBoardAsync(
+            boardId,
+            botUser);
+
+        if (botIsAlreadyInBoard)
+        {
+            return true;
+        }
+
+        return await messageBoardRepository.AddUserToBoardAsync(boardId, botUser);
     }
 
     public async Task<List<MessageBoardInviteResponse>?> GetUserInvitesAsync(string uniqueId)

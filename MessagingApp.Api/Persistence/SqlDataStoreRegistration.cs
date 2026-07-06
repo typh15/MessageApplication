@@ -16,6 +16,7 @@ public static class SqlDataStoreRegistration
         "MessageBoardJoinRequests",
         "MessageBoardInvites",
         "ChatMessages",
+        "ConversationSummaries",
         "Images",
         "PushNotificationSubscriptions"
     ];
@@ -96,10 +97,20 @@ public static class SqlDataStoreRegistration
         }
 
         if (existingTableNames.Count > 0 &&
-            missingTableNames.Count == 1 &&
-            missingTableNames.Contains("MessageBoardFavorites"))
+            missingTableNames.All(IsAdditiveTableName))
         {
-            await CreateMessageBoardFavoritesTableAsync(connection);
+            foreach (var missingTableName in missingTableNames)
+            {
+                if (missingTableName == "MessageBoardFavorites")
+                {
+                    await CreateMessageBoardFavoritesTableAsync(connection);
+                }
+                else if (missingTableName == "ConversationSummaries")
+                {
+                    await CreateConversationSummariesTableAsync(connection);
+                }
+            }
+
             return;
         }
 
@@ -136,6 +147,27 @@ public static class SqlDataStoreRegistration
             """
             CREATE INDEX "IX_MessageBoardFavorites_UserUniqueId" ON "MessageBoardFavorites" ("UserUniqueId")
             """);
+    }
+
+    private static async Task CreateConversationSummariesTableAsync(SqliteConnection connection)
+    {
+        await ExecuteSqliteNonQueryAsync(
+            connection,
+            """
+            CREATE TABLE "ConversationSummaries" (
+                "ConversationId" TEXT NOT NULL,
+                "SummaryText" TEXT NOT NULL,
+                "SummaryThroughMessageId" INTEGER NOT NULL,
+                "UpdatedAtUtc" TEXT NOT NULL,
+                CONSTRAINT "PK_ConversationSummaries" PRIMARY KEY ("ConversationId")
+            )
+            """);
+    }
+
+    private static bool IsAdditiveTableName(string tableName)
+    {
+        return tableName == "MessageBoardFavorites" ||
+            tableName == "ConversationSummaries";
     }
 
     private static string CreateSqliteConnectionString(

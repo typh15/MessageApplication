@@ -15,6 +15,7 @@ public sealed class MessagingAppDbContext : DbContext
     public DbSet<MessageBoardJoinRequestRecord> MessageBoardJoinRequests => Set<MessageBoardJoinRequestRecord>();
     public DbSet<MessageBoardInviteRecord> MessageBoardInvites => Set<MessageBoardInviteRecord>();
     public DbSet<ChatMessageRecord> ChatMessages => Set<ChatMessageRecord>();
+    public DbSet<ConversationSummaryRecord> ConversationSummaries => Set<ConversationSummaryRecord>();
     public DbSet<ImageRecord> Images => Set<ImageRecord>();
     public DbSet<PushNotificationSubscriptionRecord> PushNotificationSubscriptions =>
         Set<PushNotificationSubscriptionRecord>();
@@ -29,6 +30,7 @@ public sealed class MessagingAppDbContext : DbContext
         ConfigureMessageBoardJoinRequests(modelBuilder);
         ConfigureMessageBoardInvites(modelBuilder);
         ConfigureChatMessages(modelBuilder);
+        ConfigureConversationSummaries(modelBuilder);
         ConfigureImages(modelBuilder);
         ConfigurePushNotificationSubscriptions(modelBuilder);
     }
@@ -211,6 +213,20 @@ public sealed class MessagingAppDbContext : DbContext
             entity.Property(image => image.DateTimeOfCreation).IsRequired();
 
             entity.HasIndex(image => image.OwnerUniqueId);
+        });
+    }
+
+    private static void ConfigureConversationSummaries(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ConversationSummaryRecord>(entity =>
+        {
+            entity.ToTable("ConversationSummaries");
+            entity.HasKey(summary => summary.ConversationId);
+
+            entity.Property(summary => summary.ConversationId).HasMaxLength(128);
+            entity.Property(summary => summary.SummaryText).IsRequired();
+            entity.Property(summary => summary.SummaryThroughMessageId).IsRequired();
+            entity.Property(summary => summary.UpdatedAtUtc).IsRequired();
         });
     }
 

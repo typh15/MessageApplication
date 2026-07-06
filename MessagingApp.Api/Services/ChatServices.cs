@@ -1,5 +1,8 @@
 public class ChatServices : IChatServices
 {
+    private const int MessagePersistAttemptCount = 3;
+    private static readonly TimeSpan DuplicateSendWindow = TimeSpan.FromSeconds(5);
+
     private readonly IMessageBoardRepository messageBoardRepository;
     private readonly IActiveUserRepository activeUserRepository;
     private readonly IImageServices imageServices;
@@ -7,6 +10,7 @@ public class ChatServices : IChatServices
     private readonly IPushNotificationServices pushNotificationServices;
     private readonly IChatbotResponseQueue chatbotResponseQueue;
     private readonly IChatbotBotUserService chatbotBotUserService;
+    private readonly ILogger<ChatServices> logger;
 
 
     public ChatServices(IMessageBoardRepository messageBoardRepository, 
@@ -15,7 +19,8 @@ public class ChatServices : IChatServices
                         IUserAccountRepository userAccountRepository,
                         IPushNotificationServices pushNotificationServices,
                         IChatbotResponseQueue chatbotResponseQueue,
-                        IChatbotBotUserService chatbotBotUserService)
+                        IChatbotBotUserService chatbotBotUserService,
+                        ILogger<ChatServices> logger)
     {
         this.messageBoardRepository = messageBoardRepository;
         this.activeUserRepository = activeUserRepository;
@@ -24,6 +29,7 @@ public class ChatServices : IChatServices
         this.pushNotificationServices = pushNotificationServices;
         this.chatbotResponseQueue = chatbotResponseQueue;
         this.chatbotBotUserService = chatbotBotUserService;
+        this.logger = logger;
     }
 
     public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
@@ -151,6 +157,8 @@ public class ChatServices : IChatServices
 
     public async Task<List<ChatMessage>> GetMessagesForBoardAsync(int boardId)
     {
+        // TODO(service-split): This assumes the caller already checked board access.
+        // Keep the signature stable during beta; move uniqueId validation here when splitting message services.
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
 
         if (board == null)
@@ -234,7 +242,7 @@ public class ChatServices : IChatServices
         return await CreateActiveUserAsync(userName, userAddress, uniqueId);
     }
 
-    public async Task<SendMessageResponse?> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress)
+    public async Task<SendMessageServiceResult> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress)
     {
         var uniqueId = request.UniqueId ?? "";
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
@@ -254,26 +262,42 @@ public class ChatServices : IChatServices
             
         if (board == null)
         {
-            return null;
+            return RejectSendMessage(
+                boardId,
+                uniqueId,
+                SendMessageFailureReason.BoardNotFound,
+                $"Message board {boardId} was not found.");
         }
 
 
         if (string.IsNullOrWhiteSpace(uniqueId))
         {
-            return null;
+            return RejectSendMessage(
+                boardId,
+                uniqueId,
+                SendMessageFailureReason.MissingUniqueId,
+                "A valid session is required to send messages.");
         }
 
         bool isUserActive = await activeUserRepository.IsUserActiveAsync(uniqueId);
 
         if (!isUserActive)
         {
-            return null;
+            return RejectSendMessage(
+                boardId,
+                uniqueId,
+                SendMessageFailureReason.InactiveUser,
+                "The current session is no longer active.");
         }
 
 
         if (activeUser == null)
         {
-            return null;
+            return RejectSendMessage(
+                boardId,
+                uniqueId,
+                SendMessageFailureReason.ActiveUserNotFound,
+                "The current user could not be found.");
         }
 
         activeUser.LastActiveTime = DateTime.UtcNow;
@@ -285,28 +309,42 @@ public class ChatServices : IChatServices
 
         if (!userIsAlreadyInBoard)
         {
-            return null;
+            return RejectSendMessage(
+                boardId,
+                uniqueId,
+                SendMessageFailureReason.NotBoardMember,
+                "You are not a member of this board.");
         }
-
-        int messageId = messageBoardRepository.GetNextMessageId(boardId);
 
         if (request.MessageType == MessageTypeEnum.image)
         {
             if (string.IsNullOrWhiteSpace(request.ImageId))
             {
-                return null;
+                return RejectSendMessage(
+                    boardId,
+                    uniqueId,
+                    SendMessageFailureReason.MissingImageId,
+                    "Image messages require an uploaded image ID.");
             }
 
             var image = await imageServices.GetImageAsync(request.ImageId);
 
             if (image == null)
             {
-                return null;
+                return RejectSendMessage(
+                    boardId,
+                    uniqueId,
+                    SendMessageFailureReason.ImageNotFound,
+                    "The uploaded image could not be found.");
             }
 
             if (image.OwnerUniqueId != uniqueId)
             {
-                return null;
+                return RejectSendMessage(
+                    boardId,
+                    uniqueId,
+                    SendMessageFailureReason.ImageOwnerMismatch,
+                    "The uploaded image belongs to a different user.");
             }
         }
 
@@ -315,37 +353,81 @@ public class ChatServices : IChatServices
             request.ImageId = null;
         }
 
-        var chatMessage = new ChatMessage(
-            messageId,
-            activeUser.UserName,
-            displayName,
-            boardId,
-            request.LocalTimestamp,
-            DateTime.UtcNow,
-            request.Content,
-            request.MessageType,
-            request.ImageId
-        );
-
-
-        chatMessage.AssignGlobalId();
-
-        bool messageWasAdded =
-            await messageBoardRepository.AddMessageToBoardAsync(boardId, chatMessage);
-
-        if (!messageWasAdded)
+        var duplicateMessage = FindRecentDuplicateMessage(board, activeUser.UserName, request);
+        if (duplicateMessage != null)
         {
-            return null;
+            logger.LogWarning(
+                "Duplicate send suppressed for board {BoardId}, message {MessageId}, user {UniqueId}.",
+                boardId,
+                duplicateMessage.Id,
+                uniqueId);
+
+            return SendMessageServiceResult.Success(
+                new SendMessageResponse(uniqueId, duplicateMessage));
         }
 
-        await pushNotificationServices.SendAsync(CreateMessagePushNotificationRequest(
-            board,
-            chatMessage,
-            uniqueId));
+        for (var attempt = 1; attempt <= MessagePersistAttemptCount; attempt++)
+        {
+            var chatMessage = CreateChatMessage(
+                messageBoardRepository.GetNextMessageId(boardId),
+                activeUser.UserName,
+                displayName,
+                boardId,
+                request);
 
-        chatbotResponseQueue.QueueResponse(boardId, chatMessage.Id, uniqueId);
+            bool messageWasAdded =
+                await messageBoardRepository.AddMessageToBoardAsync(boardId, chatMessage);
 
-        return new SendMessageResponse(uniqueId, chatMessage);
+            if (messageWasAdded)
+            {
+                await TrySendMessagePushNotificationAsync(
+                    board,
+                    chatMessage,
+                    uniqueId);
+
+                TryQueueChatbotResponse(boardId, chatMessage.Id, uniqueId);
+
+                return SendMessageServiceResult.Success(
+                    new SendMessageResponse(uniqueId, chatMessage));
+            }
+
+            var refreshedBoard = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
+            if (refreshedBoard != null)
+            {
+                var persistedDuplicate = FindRecentDuplicateMessage(
+                    refreshedBoard,
+                    activeUser.UserName,
+                    request);
+
+                if (persistedDuplicate != null)
+                {
+                    logger.LogWarning(
+                        "Duplicate send resolved after repository add failure for board {BoardId}, message {MessageId}, user {UniqueId}.",
+                        boardId,
+                        persistedDuplicate.Id,
+                        uniqueId);
+
+                    return SendMessageServiceResult.Success(
+                        new SendMessageResponse(uniqueId, persistedDuplicate));
+                }
+            }
+
+            logger.LogWarning(
+                "Send message persistence attempt {Attempt} failed for board {BoardId}, user {UniqueId}.",
+                attempt,
+                boardId,
+                uniqueId);
+        }
+
+        logger.LogError(
+            "Send message failed after {AttemptCount} persistence attempts for board {BoardId}, user {UniqueId}.",
+            MessagePersistAttemptCount,
+            boardId,
+            uniqueId);
+
+        return SendMessageServiceResult.Failure(
+            SendMessageFailureReason.PersistenceFailed,
+            "Unable to persist the message.");
     }
 
     public async Task<bool> JoinBoardAsync(int boardId, string uniqueId, string userAddress, bool allowed)
@@ -1150,6 +1232,122 @@ public class ChatServices : IChatServices
                 
         }
         return null;
+    }
+
+    private SendMessageServiceResult RejectSendMessage(
+        int boardId,
+        string uniqueId,
+        SendMessageFailureReason reason,
+        string message)
+    {
+        logger.LogWarning(
+            "Send message rejected. Reason {Reason}. Board {BoardId}. User {UniqueId}.",
+            reason,
+            boardId,
+            string.IsNullOrWhiteSpace(uniqueId) ? "(missing)" : uniqueId);
+
+        return SendMessageServiceResult.Failure(reason, message);
+    }
+
+    private static ChatMessage? FindRecentDuplicateMessage(
+        MessageBoard board,
+        string senderUserName,
+        CreateChatMessageRequest request)
+    {
+        var duplicateWindowStart = DateTime.UtcNow.Subtract(DuplicateSendWindow);
+
+        return board.ChatMessages
+            .Where(message => message.ServerTimestamp >= duplicateWindowStart)
+            .Where(message => string.Equals(
+                message.FromUserName,
+                senderUserName,
+                StringComparison.Ordinal))
+            .Where(message => message.MessageType == request.MessageType)
+            .Where(message => string.Equals(
+                message.Content ?? string.Empty,
+                request.Content ?? string.Empty,
+                StringComparison.Ordinal))
+            .Where(message => string.Equals(
+                message.ImageId ?? string.Empty,
+                request.ImageId ?? string.Empty,
+                StringComparison.Ordinal))
+            .OrderByDescending(message => message.ServerTimestamp)
+            .ThenByDescending(message => message.Id)
+            .FirstOrDefault();
+    }
+
+    private static ChatMessage CreateChatMessage(
+        int messageId,
+        string fromUserName,
+        string displayName,
+        int boardId,
+        CreateChatMessageRequest request)
+    {
+        var chatMessage = new ChatMessage(
+            messageId,
+            fromUserName,
+            displayName,
+            boardId,
+            request.LocalTimestamp,
+            DateTime.UtcNow,
+            request.Content,
+            request.MessageType,
+            request.ImageId);
+
+        chatMessage.AssignGlobalId();
+
+        return chatMessage;
+    }
+
+    private async Task TrySendMessagePushNotificationAsync(
+        MessageBoard board,
+        ChatMessage chatMessage,
+        string senderUniqueId)
+    {
+        try
+        {
+            var result = await pushNotificationServices.SendAsync(
+                CreateMessagePushNotificationRequest(
+                    board,
+                    chatMessage,
+                    senderUniqueId));
+
+            if (!result.AcceptedByPushService)
+            {
+                logger.LogWarning(
+                    "Push notification send failed for board {BoardId}, message {MessageId}. Requested {RequestedRecipientCount}, subscriptions {SubscriptionCount}, sent {SentCount}. Error: {ErrorMessage}",
+                    board.BoardId,
+                    chatMessage.Id,
+                    result.RequestedRecipientCount,
+                    result.SubscriptionCount,
+                    result.SentCount,
+                    result.ErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Push notification side effect failed for board {BoardId}, message {MessageId}. Message was already saved.",
+                board.BoardId,
+                chatMessage.Id);
+        }
+    }
+
+    private void TryQueueChatbotResponse(int boardId, int messageId, string senderUniqueId)
+    {
+        try
+        {
+            chatbotResponseQueue.QueueResponse(boardId, messageId, senderUniqueId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Chatbot queue side effect failed for board {BoardId}, message {MessageId}. Message was already saved.",
+                boardId,
+                messageId);
+        }
     }
 
     private static PushNotificationSendRequest CreateMessagePushNotificationRequest(

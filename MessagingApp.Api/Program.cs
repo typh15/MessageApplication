@@ -88,6 +88,8 @@ if (useForwardedHeaders)
     app.UseForwardedHeaders();
 }
 
+app.UseMiddleware<RequestDiagnosticsMiddleware>();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

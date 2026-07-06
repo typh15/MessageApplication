@@ -41,12 +41,12 @@ public class MessagesController : ControllerBase
             
         );
 
-        if (result == null)
+        if (!result.Succeeded)
         {
-            return BadRequest("Unable to send message.");
+            return CreateSendMessageFailureResponse(result);
         }
 
-        return Ok(result);
+        return Ok(result.Response);
     }
 
 
@@ -72,4 +72,24 @@ public class MessagesController : ControllerBase
     }
 
 
+    private IActionResult CreateSendMessageFailureResponse(SendMessageServiceResult result)
+    {
+        var message = result.FailureMessage ?? "Unable to send message.";
+
+        return result.FailureReason switch
+        {
+            SendMessageFailureReason.BoardNotFound => NotFound(message),
+            SendMessageFailureReason.MissingUniqueId => Unauthorized(message),
+            SendMessageFailureReason.InactiveUser => Unauthorized(message),
+            SendMessageFailureReason.ActiveUserNotFound => Unauthorized(message),
+            SendMessageFailureReason.NotBoardMember => StatusCode(StatusCodes.Status403Forbidden, message),
+            SendMessageFailureReason.MissingImageId => BadRequest(message),
+            SendMessageFailureReason.ImageNotFound => NotFound(message),
+            SendMessageFailureReason.ImageOwnerMismatch => StatusCode(StatusCodes.Status403Forbidden, message),
+            SendMessageFailureReason.PersistenceFailed => StatusCode(
+                StatusCodes.Status500InternalServerError,
+                message),
+            _ => BadRequest(message),
+        };
+    }
 }

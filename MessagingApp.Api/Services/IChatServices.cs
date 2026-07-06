@@ -9,7 +9,7 @@ public interface IChatServices
     Task<CreateActiveUserResponse?> CreateAnonymousActiveUserAsync(string userName, string userAddress);
     Task<CreateActiveUserResponse?> CreateActiveUserAsync(string userName, string userAddress, string uniqueId);
     Task<CreateActiveUserResponse?> CreateOrRefreshActiveUserAsync(string userName, string userAddress, string uniqueId);
-    Task<SendMessageResponse?> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress);
+    Task<SendMessageServiceResult> SendMessageToBoardAsync(int boardId, CreateChatMessageRequest request, string userAddress);
     Task<bool> JoinBoardAsync(int boardId, string uniqueId, string userAddress, bool allowed);
     Task<bool> LeaveBoardAsync(int boardId, string uniqueId);
     Task<bool> AddFavoriteBoardAsync(int boardId, string uniqueId);

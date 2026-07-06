@@ -3,14 +3,16 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class ActiveUsersController : ControllerBase
 {
-    private readonly IChatServices chatService;
-    private readonly IAccountServices accountServices;
+    private readonly IActiveUserServices activeUserServices;
+    private readonly IPublicProfileServices publicProfileServices;
 
 
-    public ActiveUsersController(IChatServices chatService, IAccountServices accountServices)
+    public ActiveUsersController(
+        IActiveUserServices activeUserServices,
+        IPublicProfileServices publicProfileServices)
     {
-        this.chatService = chatService;
-        this.accountServices = accountServices;
+        this.activeUserServices = activeUserServices;
+        this.publicProfileServices = publicProfileServices;
     }
 
     
@@ -22,7 +24,7 @@ public class ActiveUsersController : ControllerBase
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        var result = await chatService.CreateAnonymousActiveUserAsync(
+        var result = await activeUserServices.CreateAnonymousActiveUserAsync(
             request.UserName,
             userAddress
         );
@@ -39,7 +41,7 @@ public class ActiveUsersController : ControllerBase
     public async Task<IActionResult> GetAllActiveUserNamesAsync()
     {
 
-        var result = await chatService.GetAllActiveUserNames();
+        var result = await activeUserServices.GetAllActiveUserNames();
         
 
 
@@ -55,7 +57,7 @@ public class ActiveUsersController : ControllerBase
     public async Task<IActionResult> GetAllPublicProfiles()
     {
 
-        var result = await chatService.GetAllPublicProfiles();
+        var result = await publicProfileServices.GetAllPublicProfiles();
 
 
         if (result == null)
@@ -70,7 +72,7 @@ public class ActiveUsersController : ControllerBase
     public async Task<IActionResult> GetPublicProfile(string userName)
     {
 
-        var result = await chatService.GetPublicProfile(userName);
+        var result = await publicProfileServices.GetPublicProfile(userName);
 
 
         if (result == null)
@@ -85,7 +87,7 @@ public class ActiveUsersController : ControllerBase
     [HttpGet("/active-users/validate")]
     public async Task<IActionResult> ValidateActiveUserAsync(string uniqueId)
     {
-        var isActive = await chatService.IsUserActiveAsync(uniqueId);
+        var isActive = await activeUserServices.IsUserActiveAsync(uniqueId);
         return Ok(isActive);
     }
 

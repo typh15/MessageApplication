@@ -3,25 +3,29 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class MessagesController : ControllerBase
 {
-    private readonly IChatServices chatService;
+    private readonly IMessageServices messageServices;
+    private readonly IMessageBoardServices messageBoardServices;
 
-    public MessagesController(IChatServices chatService)
+    public MessagesController(
+        IMessageServices messageServices,
+        IMessageBoardServices messageBoardServices)
     {
-        this.chatService = chatService;
+        this.messageServices = messageServices;
+        this.messageBoardServices = messageBoardServices;
     }
 
 
     [HttpGet("/message-boards/{boardId}/messages")]
     public async Task<IActionResult> GetMessagesForBoardAsync(int boardId, string uniqueId)
     {
-        var board = await chatService.GetMessageBoardByIdAsync(boardId, uniqueId);
+        var board = await messageBoardServices.GetMessageBoardByIdAsync(boardId, uniqueId);
 
         if (board == null)
         {
             return NotFound($"Message board {boardId} was not found.");
         }
 
-        var messages = await chatService.GetMessagesForBoardAsync(boardId);
+        var messages = await messageServices.GetMessagesForBoardAsync(boardId);
 
         return Ok(messages);
     }
@@ -34,7 +38,7 @@ public class MessagesController : ControllerBase
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        var result = await chatService.SendMessageToBoardAsync(
+        var result = await messageServices.SendMessageToBoardAsync(
             boardId,
             request,
             userAddress
@@ -57,7 +61,7 @@ public class MessagesController : ControllerBase
         string uniqueId)
     {
 
-        bool wasDeleted = await chatService.DeleteMessageAsync(
+        bool wasDeleted = await messageServices.DeleteMessageAsync(
             uniqueId,
             boardId,
             messageId

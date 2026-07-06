@@ -21,7 +21,13 @@ builder.Services.Configure<ChatbotOptions>(
     builder.Configuration.GetSection(ChatbotOptions.SectionName));
 builder.Services.AddMessagingAppRepositories(builder.Configuration);
 
-builder.Services.AddSingleton<IChatServices, ChatServices>();
+builder.Services.AddSingleton<IActiveUserSessionServices, ActiveUserSessionServices>();
+builder.Services.AddSingleton<IActiveUserServices, ActiveUserServices>();
+builder.Services.AddSingleton<IPublicProfileServices, PublicProfileServices>();
+builder.Services.AddSingleton<IMessageBoardServices, MessageBoardServices>();
+builder.Services.AddSingleton<IBoardMembershipServices, BoardMembershipServices>();
+builder.Services.AddSingleton<IMessageNotificationServices, MessageNotificationServices>();
+builder.Services.AddSingleton<IMessageServices, MessageServices>();
 
 builder.Services.AddSingleton<IAccountServices, AccountServices>();
 

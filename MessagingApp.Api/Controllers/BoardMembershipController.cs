@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class BoardMembershipController : ControllerBase
 {
-    private readonly IChatServices chatService;
+    private readonly IBoardMembershipServices boardMembershipServices;
 
-    public BoardMembershipController(IChatServices chatService)
+    public BoardMembershipController(IBoardMembershipServices boardMembershipServices)
     {
-        this.chatService = chatService;
+        this.boardMembershipServices = boardMembershipServices;
     }
 
     
@@ -21,9 +21,9 @@ public class BoardMembershipController : ControllerBase
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        var canJoin = await chatService.CheckIfUserCanJoin(boardId, request.UniqueId, request);
+        var canJoin = await boardMembershipServices.CheckIfUserCanJoin(boardId, request.UniqueId, request);
 
-        var success = await chatService.JoinBoardAsync(
+        var success = await boardMembershipServices.JoinBoardAsync(
             boardId,
             request.UniqueId,
             userAddress,
@@ -43,7 +43,7 @@ public class BoardMembershipController : ControllerBase
         int boardId,
         string uniqueId)
     {
-        var success = await chatService.LeaveBoardAsync(boardId, uniqueId);
+        var success = await boardMembershipServices.LeaveBoardAsync(boardId, uniqueId);
 
         if (!success)
         {
@@ -60,9 +60,9 @@ public class BoardMembershipController : ControllerBase
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        var canRequest = await chatService.CheckIfUserCanRequest(request);
+        var canRequest = await boardMembershipServices.CheckIfUserCanRequest(request);
 
-        var success = await chatService.AddUserToRequests(
+        var success = await boardMembershipServices.AddUserToRequests(
             request.UniqueBoardId,
             request.UniqueId,
             userAddress,
@@ -83,7 +83,7 @@ public class BoardMembershipController : ControllerBase
         string memberUniqueId,
         string userName)
     {   
-        var success = await chatService.ApproveUserJoinRequest(
+        var success = await boardMembershipServices.ApproveUserJoinRequest(
             boardId,
             memberUniqueId,
             userName
@@ -103,7 +103,7 @@ public class BoardMembershipController : ControllerBase
         string memberUniqueId,
         string userName)
     {   
-        var success = await chatService.DenyUserJoinRequest(
+        var success = await boardMembershipServices.DenyUserJoinRequest(
             boardId,
             memberUniqueId,
             userName
@@ -122,7 +122,7 @@ public class BoardMembershipController : ControllerBase
         int boardId,
         string memberUniqueId)
     {
-        var requests = await chatService.GetBoardJoinRequestsAsync(boardId, memberUniqueId);
+        var requests = await boardMembershipServices.GetBoardJoinRequestsAsync(boardId, memberUniqueId);
 
         if (requests == null)
         {
@@ -137,7 +137,7 @@ public class BoardMembershipController : ControllerBase
         int boardId,
         string uniqueId)
     {
-        var members = await chatService.GetBoardMembersAsync(boardId, uniqueId);
+        var members = await boardMembershipServices.GetBoardMembersAsync(boardId, uniqueId);
 
         if (members == null)
         {
@@ -153,7 +153,7 @@ public class BoardMembershipController : ControllerBase
         string memberUniqueId,
         string inviteUserName)
     {   
-        var success = await chatService.InviteUserJoinRequest(
+        var success = await boardMembershipServices.InviteUserJoinRequest(
             boardId,
             memberUniqueId,
             inviteUserName
@@ -171,7 +171,7 @@ public class BoardMembershipController : ControllerBase
     [HttpGet("/active-users/{uniqueId}/invites")]
     public async Task<IActionResult> GetUserInvitesAsync(string uniqueId)
     {
-        var invites = await chatService.GetUserInvitesAsync(uniqueId);
+        var invites = await boardMembershipServices.GetUserInvitesAsync(uniqueId);
 
         if (invites == null)
         {
@@ -186,7 +186,7 @@ public class BoardMembershipController : ControllerBase
         int boardId,
         string uniqueId)
         {
-        var success = await chatService.AcceptBoardInvite(
+        var success = await boardMembershipServices.AcceptBoardInvite(
             boardId,
             uniqueId
         );
@@ -204,7 +204,7 @@ public class BoardMembershipController : ControllerBase
         int boardId,
         string uniqueId)
         {
-        var success = await chatService.RejectBoardInvite(
+        var success = await boardMembershipServices.RejectBoardInvite(
             boardId,
             uniqueId
         );
@@ -224,7 +224,7 @@ public class BoardMembershipController : ControllerBase
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        var success = await chatService.JoinBoardByCodeAsync(
+        var success = await boardMembershipServices.JoinBoardByCodeAsync(
             request.UniqueBoardId,
             request.UniqueId,
             request.Password,

@@ -4,14 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 public class RegistrationController : ControllerBase
 {
     private const int MinimumPasswordLength = 8;
-    private readonly IChatServices chatServices;
+    private readonly IActiveUserServices activeUserServices;
     private readonly IAccountServices accountServices;
 
     public RegistrationController(
-        IChatServices chatServices,
+        IActiveUserServices activeUserServices,
         IAccountServices accountServices)
     {
-        this.chatServices = chatServices;
+        this.activeUserServices = activeUserServices;
         this.accountServices = accountServices;
     }
 
@@ -30,7 +30,7 @@ public class RegistrationController : ControllerBase
         }
 
         var userName = request.UserName.Trim();
-        var activeUserNames = await chatServices.GetAllActiveUserNames();
+        var activeUserNames = await activeUserServices.GetAllActiveUserNames();
 
         var userNameExists = activeUserNames.Any(existingName =>
             string.Equals(existingName, userName, StringComparison.OrdinalIgnoreCase)
@@ -60,7 +60,7 @@ public class RegistrationController : ControllerBase
             return BadRequest("Unable to create user account.");
         }
 
-        var activeUser = await chatServices.CreateActiveUserAsync(
+        var activeUser = await activeUserServices.CreateActiveUserAsync(
             userName,
             userAddress,
             uniqueId
@@ -105,7 +105,7 @@ public class RegistrationController : ControllerBase
         var userAddress =
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        var activeUser = await chatServices.CreateOrRefreshActiveUserAsync(
+        var activeUser = await activeUserServices.CreateOrRefreshActiveUserAsync(
             userName,
             userAddress,
             account.UniqueId

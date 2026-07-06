@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class MessageBoardController : ControllerBase
 {
-    private readonly IChatServices chatService;
+    private readonly IMessageBoardServices messageBoardServices;
 
-    public MessageBoardController(IChatServices chatService)
+    public MessageBoardController(IMessageBoardServices messageBoardServices)
     {
-        this.chatService = chatService;
+        this.messageBoardServices = messageBoardServices;
     }
 
     
@@ -15,13 +15,13 @@ public class MessageBoardController : ControllerBase
     [HttpGet("/message-boards")]
     public async Task<List<MessageBoardDataResponse>> GetMessageBoardsAsync(string uniqueId)
     {
-        return await chatService.GetMessageBoardsAsync(uniqueId);
+        return await messageBoardServices.GetMessageBoardsAsync(uniqueId);
     }
     
     [HttpGet("/message-boards/{boardId}")]
     public async Task<IActionResult> GetMessageBoardByIdAsync(int boardId, string uniqueId)
     {
-        var board = await chatService.GetMessageBoardByIdAsync(boardId, uniqueId);
+        var board = await messageBoardServices.GetMessageBoardByIdAsync(boardId, uniqueId);
 
         if (board == null)
         {
@@ -35,7 +35,7 @@ public class MessageBoardController : ControllerBase
     public async Task<IActionResult> GetAllPublicBoardNamesAsync()
     {
 
-        var result = await chatService.GetPublicBoardNames();
+        var result = await messageBoardServices.GetPublicBoardNames();
 
 
         if (result == null)
@@ -56,7 +56,7 @@ public class MessageBoardController : ControllerBase
             return BadRequest("No UniqueId Found.");
         }
 
-        var board = await chatService.CreateMessageBoardAsync(
+        var board = await messageBoardServices.CreateMessageBoardAsync(
             request.UniqueId,
             request.BoardName,
             request.VisibleToPublic,
@@ -76,7 +76,7 @@ public class MessageBoardController : ControllerBase
     [HttpPost("/message-boards/{boardId}/favorite")]
     public async Task<IActionResult> AddFavoriteBoardAsync(int boardId, string uniqueId)
     {
-        var success = await chatService.AddFavoriteBoardAsync(boardId, uniqueId);
+        var success = await messageBoardServices.AddFavoriteBoardAsync(boardId, uniqueId);
 
         if (!success)
         {
@@ -89,7 +89,7 @@ public class MessageBoardController : ControllerBase
     [HttpDelete("/message-boards/{boardId}/favorite")]
     public async Task<IActionResult> RemoveFavoriteBoardAsync(int boardId, string uniqueId)
     {
-        var success = await chatService.RemoveFavoriteBoardAsync(boardId, uniqueId);
+        var success = await messageBoardServices.RemoveFavoriteBoardAsync(boardId, uniqueId);
 
         if (!success)
         {

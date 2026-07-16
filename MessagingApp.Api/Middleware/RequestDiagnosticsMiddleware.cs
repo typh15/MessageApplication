@@ -37,19 +37,13 @@ public sealed class RequestDiagnosticsMiddleware
             await next(context);
             stopwatch.Stop();
 
-            LogCompletedRequest(context, stopwatch.ElapsedMilliseconds);
+            TryLogCompletedRequest(context, stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
 
-            logger.LogError(
-                ex,
-                "Unhandled exception for {Method} {Path}. Status {StatusCode}. Duration {ElapsedMilliseconds} ms.",
-                context.Request.Method,
-                context.Request.Path,
-                StatusCodes.Status500InternalServerError,
-                stopwatch.ElapsedMilliseconds);
+            TryLogUnhandledException(context, ex, stopwatch.ElapsedMilliseconds);
 
             if (context.Response.HasStarted)
             {
@@ -78,6 +72,41 @@ public sealed class RequestDiagnosticsMiddleware
         }
 
         return Activity.Current?.Id ?? Guid.NewGuid().ToString("N");
+    }
+
+    private void TryLogCompletedRequest(HttpContext context, long elapsedMilliseconds)
+    {
+        try
+        {
+            LogCompletedRequest(context, elapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(
+                $"Request completion logging failed for {context.Request.Method} {context.Request.Path}: {ex.Message}");
+        }
+    }
+
+    private void TryLogUnhandledException(
+        HttpContext context,
+        Exception exception,
+        long elapsedMilliseconds)
+    {
+        try
+        {
+            logger.LogError(
+                exception,
+                "Unhandled exception for {Method} {Path}. Status {StatusCode}. Duration {ElapsedMilliseconds} ms.",
+                context.Request.Method,
+                context.Request.Path,
+                StatusCodes.Status500InternalServerError,
+                elapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(
+                $"Unhandled-exception logging failed for {context.Request.Method} {context.Request.Path}: {ex.Message}");
+        }
     }
 
     private void LogCompletedRequest(HttpContext context, long elapsedMilliseconds)

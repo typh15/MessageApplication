@@ -2,7 +2,7 @@
 
 Message Board is a No Future Studio beta messaging app with an ASP.NET Core API and an Expo/React Native client. Users can register or log in with a username and password, create public or private boards, join or request access to boards, invite other users, manage a lightweight profile, exchange text and image messages, start one-to-one private chats, and register devices for Expo push notifications.
 
-The project is in active beta. The web app is live through Cloudflare at `https://messageboard.nofuturestudio.com`, the Android preview build is being shared privately through Google Drive, and the current beta API endpoint is `https://desktop-ke30sl9.tail915de.ts.net`.
+The project is in active beta. The web app is live through Cloudflare at `https://messageboards.nofuturestudio.com`, the Android preview build is being shared privately through Google Drive, and the current beta API endpoint is `https://desktop-ke30sl9.tail915de.ts.net`.
 
 The default backend storage is SQLite. The original in-memory repositories remain available behind configuration switches for debugging and comparison.
 
@@ -10,7 +10,7 @@ The default backend storage is SQLite. The original in-memory repositories remai
 
 | Surface | Status | Notes |
 | --- | --- | --- |
-| Web app | Live beta | Hosted through Cloudflare at `https://messageboard.nofuturestudio.com`. |
+| Web app | Live beta | Hosted through Cloudflare at `https://messageboards.nofuturestudio.com`. |
 | Android | Preview beta | Built with EAS preview/internal distribution and currently shared privately through Google Drive. |
 | API | Beta service | Current default API endpoint is `https://desktop-ke30sl9.tail915de.ts.net`. |
 | iOS | Development-capable | Expo/iOS support exists, but the active beta distribution path is web plus Android preview. |
@@ -19,7 +19,7 @@ The web app and the API are separate deployments. Cloudflare serves the static E
 
 ## For Beta Testers
 
-1. Open `https://messageboard.nofuturestudio.com`.
+1. Open `https://messageboards.nofuturestudio.com`.
 2. Register with a username and password, or log in with an existing beta account.
 3. Leave the Server URL as the default unless you were asked to test a different backend.
 4. Create or join a board and start messaging.
@@ -86,6 +86,8 @@ MessagingApp/
 - One-to-one private chats built on hidden private boards.
 - Board member browsing and member-to-member chat entry points.
 - Message deletion by original sender.
+- Signed-in account deletion that removes account/profile data, board relationships, sent messages, owned images, and push subscriptions.
+- Public `/privacy` and `/account-deletion` web routes for Play Console policy links.
 - Expo push notification subscription registration and storage.
 - Android, iOS, and web support through Expo.
 - Static web export for Cloudflare or another static host.
@@ -258,7 +260,7 @@ The sign-in screen can save a different Server URL in AsyncStorage. Most API cal
 Current live web beta:
 
 ```text
-https://messageboard.nofuturestudio.com
+https://messageboards.nofuturestudio.com
 ```
 
 ### Beta Funnel
@@ -362,6 +364,7 @@ Registration and login response:
 | --- | --- | --- |
 | `POST` | `/user-accounts` | Create account/profile data directly. |
 | `GET` | `/user-accounts/{uniqueId}` | Return public account data. |
+| `DELETE` | `/user-accounts/{uniqueId}` | Delete the signed-in account and associated app data. |
 | `PUT` | `/user-accounts/{uniqueId}/display-name` | Update display name. |
 | `PUT` | `/user-accounts/{uniqueId}/public-blurb` | Update public profile text. |
 | `PUT` | `/user-accounts/{uniqueId}/avatar` | Update avatar image ID. |
@@ -563,7 +566,14 @@ Copy or deploy the generated `MessagingAppClient/web-build` contents to a static
 The live beta web app is currently hosted through Cloudflare at:
 
 ```text
-https://messageboard.nofuturestudio.com
+https://messageboards.nofuturestudio.com
+```
+
+Play Console policy URLs:
+
+```text
+https://messageboards.nofuturestudio.com/privacy
+https://messageboards.nofuturestudio.com/account-deletion
 ```
 
 Run an Android preview build through EAS:
@@ -578,6 +588,7 @@ The active Android beta distribution process is manual private sharing through G
 ## Documentation
 
 - `MessagingAppClient/README.md` covers the Expo client specifically.
+- `docs/android-play-store-beta.md` walks through moving the Android beta from Google Drive APK sharing to Google Play testing tracks.
 - `docs/chatbot-development-deployment.md` separates local chatbot testing from desktop beta deployment.
 - `docs/sql-persistence-reference.md` explains the repository storage switches, EF Core schema, and migration/debugging approach.
 - `docs/sql-persistence-plan.md` tracks persistence migration planning.

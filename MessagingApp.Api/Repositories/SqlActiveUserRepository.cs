@@ -112,6 +112,27 @@ class SqlActiveUserRepository : IActiveUserRepository
         return true;
     }
 
+    public async Task<bool> RemoveActiveUserByUniqueIdAsync(string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var userToRemove = await dbContext.ActiveUsers
+            .FirstOrDefaultAsync(user => user.UniqueId == uniqueId);
+
+        if (userToRemove == null)
+        {
+            return false;
+        }
+
+        dbContext.ActiveUsers.Remove(userToRemove);
+        await dbContext.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> IsUserActiveAsync(string uniqueId)
     {
         if (string.IsNullOrWhiteSpace(uniqueId))

@@ -3,6 +3,7 @@ public class ImageServices : IImageServices
     private const long DefaultMaxImageSizeBytes = 5 * 1024 * 1024;
 
     private readonly IImageRepository imageRepository;
+    private readonly ILogger<ImageServices> logger;
     private readonly string imageStorageRoot;
 
     public long MaxImageSizeBytes
@@ -10,9 +11,13 @@ public class ImageServices : IImageServices
         get { return DefaultMaxImageSizeBytes; }
     }
 
-    public ImageServices(IImageRepository imageRepository, IWebHostEnvironment environment)
+    public ImageServices(
+        IImageRepository imageRepository,
+        IWebHostEnvironment environment,
+        ILogger<ImageServices> logger)
     {
         this.imageRepository = imageRepository;
+        this.logger = logger;
         imageStorageRoot = Path.Combine(environment.ContentRootPath, "App_Data", "images");
 
         Directory.CreateDirectory(imageStorageRoot);
@@ -111,12 +116,32 @@ public class ImageServices : IImageServices
             return false;
         }
 
-        if (File.Exists(image.StoragePath))
-        {
-            File.Delete(image.StoragePath);
-        }
+        TryDeleteStoredImageFile(image);
 
         return await imageRepository.DeleteImageAsync(imageId);
+    }
+
+    public async Task<int> DeleteImagesForOwnerAsync(string ownerUniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(ownerUniqueId))
+        {
+            return 0;
+        }
+
+        var images = await imageRepository.GetImagesForOwnerAsync(ownerUniqueId);
+        var deletedCount = 0;
+
+        foreach (var image in images)
+        {
+            TryDeleteStoredImageFile(image);
+
+            if (await imageRepository.DeleteImageAsync(image.ImageId))
+            {
+                deletedCount++;
+            }
+        }
+
+        return deletedCount;
     }
 
     public Task ClearStoredImagesAsync()
@@ -195,5 +220,37 @@ public class ImageServices : IImageServices
         }
 
         return ".jpg";
+    }
+
+    private void TryDeleteStoredImageFile(ImageModel image)
+    {
+        try
+        {
+            if (File.Exists(image.StoragePath))
+            {
+                File.Delete(image.StoragePath);
+            }
+        }
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+        {
+            TryLogImageFileDeleteWarning(ex, image);
+        }
+    }
+
+    private void TryLogImageFileDeleteWarning(Exception exception, ImageModel image)
+    {
+        try
+        {
+            logger.LogWarning(
+                exception,
+                "Unable to delete stored image file {ImageId} at {StoragePath}. The image metadata will still be removed.",
+                image.ImageId,
+                image.StoragePath);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(
+                $"Image file deletion logging failed for {image.ImageId}: {ex.Message}");
+        }
     }
 }

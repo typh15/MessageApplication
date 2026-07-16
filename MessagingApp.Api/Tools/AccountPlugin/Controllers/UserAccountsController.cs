@@ -4,10 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 public class UserAccountsController : ControllerBase
 {
     private readonly IAccountServices accountServices;
+    private readonly IAccountDataDeletionServices accountDataDeletionServices;
 
-    public UserAccountsController(IAccountServices accountServices)
+    public UserAccountsController(
+        IAccountServices accountServices,
+        IAccountDataDeletionServices accountDataDeletionServices)
     {
         this.accountServices = accountServices;
+        this.accountDataDeletionServices = accountDataDeletionServices;
     }
 
     [HttpPost("/user-accounts")]
@@ -35,6 +39,41 @@ public class UserAccountsController : ControllerBase
         }
 
         return Ok(account);
+    }
+
+    [HttpDelete("/user-accounts/{uniqueId}")]
+    public async Task<IActionResult> DeleteUserAccountAsync(string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return BadRequest("User account ID is required.");
+        }
+
+        var account = await accountServices.GetUserAccountAsync(uniqueId);
+        if (account == null)
+        {
+            return NotFound("User account was not found.");
+        }
+
+        var primaryDataDeleted =
+            await accountDataDeletionServices.DeletePrimaryAccountDataAsync(uniqueId);
+
+        if (!primaryDataDeleted)
+        {
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                "Unable to delete primary account data.");
+        }
+
+        var accountDeleted = await accountServices.DeleteUserAccountAsync(uniqueId);
+        if (!accountDeleted)
+        {
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                "Unable to delete user account.");
+        }
+
+        return Ok(new DeleteUserAccountResponse(accountDeleted, primaryDataDeleted));
     }
 
     [HttpPut("/user-accounts/{uniqueId}/display-name")]

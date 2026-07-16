@@ -43,6 +43,16 @@ public class PushNotificationServices : IPushNotificationServices
         return await pushNotificationRepository.DeleteSubscriptionAsync(uniqueId, expoPushToken);
     }
 
+    public async Task<bool> DeleteSubscriptionsForUserAsync(string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        return await pushNotificationRepository.DeleteSubscriptionsForUserAsync(uniqueId);
+    }
+
     public async Task<PushNotificationSendResult> SendAsync(PushNotificationSendRequest request)
     {
         var recipientUniqueIds = request.RecipientUniqueIds

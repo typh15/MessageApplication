@@ -86,6 +86,27 @@ class SqlUserAccountRepository : IUserAccountRepository
         return userAccount == null ? null : CreateUserAccount(userAccount);
     }
 
+    public async Task<bool> DeleteUserAccountAsync(string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var userAccount = await dbContext.UserAccounts
+            .FirstOrDefaultAsync(account => account.UniqueId == uniqueId);
+
+        if (userAccount == null)
+        {
+            return false;
+        }
+
+        dbContext.UserAccounts.Remove(userAccount);
+        await dbContext.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> UpdateDisplayName(string uniqueId, string newName)
     {
         if (string.IsNullOrWhiteSpace(uniqueId) || string.IsNullOrWhiteSpace(newName))

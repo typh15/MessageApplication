@@ -405,6 +405,43 @@ class SqlMessageBoardRepository : IMessageBoardRepository
         return true;
     }
 
+    public async Task<bool> DeleteUserBoardDataAsync(ActiveUser user)
+    {
+        if (user == null ||
+            string.IsNullOrWhiteSpace(user.UniqueId) ||
+            string.IsNullOrWhiteSpace(user.UserName))
+        {
+            return false;
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+
+        var memberships = await dbContext.MessageBoardMembers
+            .Where(member => member.UserUniqueId == user.UniqueId)
+            .ToListAsync();
+        var favorites = await dbContext.MessageBoardFavorites
+            .Where(favorite => favorite.UserUniqueId == user.UniqueId)
+            .ToListAsync();
+        var joinRequests = await dbContext.MessageBoardJoinRequests
+            .Where(request => request.UserUniqueId == user.UniqueId)
+            .ToListAsync();
+        var invites = await dbContext.MessageBoardInvites
+            .Where(invite => invite.UserUniqueId == user.UniqueId)
+            .ToListAsync();
+        var messages = await dbContext.ChatMessages
+            .Where(message => message.FromUserName == user.UserName)
+            .ToListAsync();
+
+        dbContext.MessageBoardMembers.RemoveRange(memberships);
+        dbContext.MessageBoardFavorites.RemoveRange(favorites);
+        dbContext.MessageBoardJoinRequests.RemoveRange(joinRequests);
+        dbContext.MessageBoardInvites.RemoveRange(invites);
+        dbContext.ChatMessages.RemoveRange(messages);
+
+        await dbContext.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> CheckUserInBoardAsync(int boardid, ActiveUser user)
     {
         if (user == null || string.IsNullOrWhiteSpace(user.UniqueId))

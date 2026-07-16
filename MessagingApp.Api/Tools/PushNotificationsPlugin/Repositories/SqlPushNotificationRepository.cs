@@ -77,6 +77,28 @@ class SqlPushNotificationRepository : IPushNotificationRepository
         return true;
     }
 
+    public async Task<bool> DeleteSubscriptionsForUserAsync(string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return false;
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var subscriptions = await dbContext.PushNotificationSubscriptions
+            .Where(subscription => subscription.UniqueId == uniqueId)
+            .ToListAsync();
+
+        if (subscriptions.Count == 0)
+        {
+            return false;
+        }
+
+        dbContext.PushNotificationSubscriptions.RemoveRange(subscriptions);
+        await dbContext.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<List<PushNotificationSubscription>> GetSubscriptionsForUsersAsync(
         IEnumerable<string> uniqueIds)
     {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -10,6 +10,7 @@ import type { MessageBoardInvite, PublicAccountDataResponse } from '@/APIHandler
 import { ThemedText } from '@/components/GenericComponents/themed-text';
 import { ThemedView } from '@/components/GenericComponents/themed-view';
 import { Button } from '@/components/ui/generic-button';
+import { PUBLIC_BASE_URL } from '@/constants/legal';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import {
     getProfileCacheKey,
@@ -42,6 +43,7 @@ export default function AccountScreen() {
     const [loading, setLoading] = useState(true);
     const [savingAccount, setSavingAccount] = useState(false);
     const [updatingAvatar, setUpdatingAvatar] = useState(false);
+    const [deletingAccount, setDeletingAccount] = useState(false);
     const [checkingPushNotifications, setCheckingPushNotifications] = useState(false);
     const [pushDiagnostics, setPushDiagnostics] =
         useState<PushNotificationDiagnosticsResult | null>(null);
@@ -215,6 +217,47 @@ export default function AccountScreen() {
     const handleSignOut = async () => {
         await clear();
         router.replace('../Login-Registration-Page');
+    };
+
+    const deleteCurrentAccount = async () => {
+        if (!session) {
+            Alert.alert('Session expired', 'Please log in again before deleting your account.');
+            router.replace('../Login-Registration-Page');
+            return;
+        }
+
+        try {
+            setDeletingAccount(true);
+            setError('');
+            await APIHandler.deleteUserAccount();
+            await clear();
+            Alert.alert('Account deleted', 'Your account deletion request was completed.');
+            router.replace('../Login-Registration-Page');
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to delete account';
+            setError(errorMessage);
+            console.error('Delete account error:', err);
+            Alert.alert('Error', errorMessage);
+        }
+        finally {
+            setDeletingAccount(false);
+        }
+    };
+
+    const handleDeleteAccount = () => {
+        Alert.alert(
+            'Delete account?',
+            'This permanently deletes your account, profile, messages, images, board memberships, invites, and notification subscriptions.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete Account',
+                    style: 'destructive',
+                    onPress: deleteCurrentAccount,
+                },
+            ]
+        );
     };
 
     const handleCheckPushNotifications = async () => {
@@ -393,6 +436,37 @@ export default function AccountScreen() {
                         onPress={handleSignOut}
                         disabled={savingAccount}
                         style={styles.secondaryButton}
+                        textStyle={styles.buttonText}
+                    />
+                </ThemedView>
+            </ThemedView>
+
+            <ThemedView style={[styles.section, { borderColor: theme.genericborder }]}>
+                <ThemedText type="subtitle" style={styles.sectionTitle}>Data & Privacy</ThemedText>
+                <ThemedText style={styles.detailText}>
+                    Review the privacy policy, read the deletion instructions, or delete this signed-in account.
+                </ThemedText>
+                <ThemedView style={styles.actionRow}>
+                    <Button
+                        showText={true}
+                        buttonText="Privacy Policy"
+                        onPress={() => Linking.openURL(`${PUBLIC_BASE_URL}/privacy`)}
+                        style={styles.secondaryButton}
+                        textStyle={styles.buttonText}
+                    />
+                    <Button
+                        showText={true}
+                        buttonText="Deletion Info"
+                        onPress={() => Linking.openURL(`${PUBLIC_BASE_URL}/account-deletion`)}
+                        style={styles.secondaryButton}
+                        textStyle={styles.buttonText}
+                    />
+                    <Button
+                        showText={true}
+                        buttonText={deletingAccount ? 'Deleting...' : 'Delete Account'}
+                        onPress={handleDeleteAccount}
+                        disabled={deletingAccount || loading || sessionLoading}
+                        style={styles.dangerButton}
                         textStyle={styles.buttonText}
                     />
                 </ThemedView>
@@ -603,6 +677,13 @@ const styles = StyleSheet.create({
     },
     secondaryButton: {
         backgroundColor: '#303342',
+        borderRadius: 8,
+        paddingHorizontal: Spacing.three,
+        paddingVertical: Spacing.two,
+        minHeight: 40,
+    },
+    dangerButton: {
+        backgroundColor: '#B42318',
         borderRadius: 8,
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,

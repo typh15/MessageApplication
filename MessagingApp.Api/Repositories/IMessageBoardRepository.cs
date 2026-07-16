@@ -24,6 +24,7 @@ public interface IMessageBoardRepository
     Task<bool> RemoveUserFromRequestAsync(int boardid, ActiveUser user);
     Task<bool> RemoveUserFromInviteAsync(int boardid, ActiveUser user);
     Task<bool> DeleteMessageAsync(int boardid, int messageid);
+    Task<bool> DeleteUserBoardDataAsync(ActiveUser user);
     Task<bool> CheckUserInBoardAsync(int boardid, ActiveUser user);
     Task<bool> CheckBoardPasswordAsync(int boardid, string password);
     Task<bool> CheckUserInRequestedListAsync(int boardid, ActiveUser user);

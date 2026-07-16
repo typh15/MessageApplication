@@ -5,7 +5,7 @@ Expo / React Native client for the Message Board beta.
 The live web beta is hosted through Cloudflare at:
 
 ```text
-https://messageboard.nofuturestudio.com
+https://messageboards.nofuturestudio.com
 ```
 
 Android preview builds are created with EAS and currently shared privately through Google Drive. The app's default API endpoint is:

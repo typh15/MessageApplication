@@ -38,6 +38,18 @@ class UserAccountRepository : IUserAccountRepository
         return Task.FromResult(userAccount);
     }
 
+    public Task<bool> DeleteUserAccountAsync(string uniqueId)
+    {
+        var userAccount = userAccounts.Find(u => u.UniqueId == uniqueId);
+        if (userAccount == null)
+        {
+            return Task.FromResult(false);
+        }
+
+        userAccounts.Remove(userAccount);
+        return Task.FromResult(true);
+    }
+
     public Task<bool> UpdateDisplayName(string uniqueId, string newName)
     {
         var userAccount = userAccounts.Find(u => u.UniqueId == uniqueId);

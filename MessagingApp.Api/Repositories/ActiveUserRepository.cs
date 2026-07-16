@@ -45,6 +45,18 @@ class ActiveUserRepository : IActiveUserRepository
         return Task.FromResult(false);
     }
 
+    public Task<bool> RemoveActiveUserByUniqueIdAsync(string uniqueId)
+    {
+        var userToRemove = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);
+        if (userToRemove != null)
+        {
+            activeUsers.Remove(userToRemove);
+            return Task.FromResult(true);
+        }
+
+        return Task.FromResult(false);
+    }
+
     public Task<ActiveUser?> GetActiveUserByUniqueId(string uniqueId)
     {
         var selectedUser = activeUsers.FirstOrDefault(u => u.UniqueId == uniqueId);

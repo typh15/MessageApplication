@@ -260,6 +260,45 @@ class MessageBoardRepository : IMessageBoardRepository
         }
         return Task.FromResult(false);
     }
+
+    public Task<bool> DeleteUserBoardDataAsync(ActiveUser user)
+    {
+        if (user == null ||
+            string.IsNullOrWhiteSpace(user.UniqueId) ||
+            string.IsNullOrWhiteSpace(user.UserName))
+        {
+            return Task.FromResult(false);
+        }
+
+        foreach (var messageBoard in messageBoards)
+        {
+            messageBoard.ActiveUsers = messageBoard.ActiveUsers
+                .Where(activeUser => activeUser.UniqueId != user.UniqueId)
+                .ToArray();
+
+            messageBoard.UserRequests = messageBoard.UserRequests
+                .Where(requestingUser => requestingUser.UniqueId != user.UniqueId)
+                .ToArray();
+
+            messageBoard.UserInvites = messageBoard.UserInvites
+                .Where(invitedUser => invitedUser.UniqueId != user.UniqueId)
+                .ToArray();
+
+            messageBoard.ChatMessages = messageBoard.ChatMessages
+                .Where(message => !string.Equals(
+                    message.FromUserName,
+                    user.UserName,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+
+        user.MessageBoardIds.Clear();
+        user.FavoriteMessageBoardIds.Clear();
+        user.RequestedMessageBoardIds.Clear();
+        user.InvitedMessageBoardIds.Clear();
+
+        return Task.FromResult(true);
+    }
     
     public Task<bool> CheckUserInBoardAsync(int boardid, ActiveUser user)
     {

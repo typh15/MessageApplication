@@ -7,5 +7,6 @@ public interface IPushNotificationRepository
         string? platform);
 
     Task<bool> DeleteSubscriptionAsync(string uniqueId, string expoPushToken);
+    Task<bool> DeleteSubscriptionsForUserAsync(string uniqueId);
     Task<List<PushNotificationSubscription>> GetSubscriptionsForUsersAsync(IEnumerable<string> uniqueIds);
 }

@@ -23,6 +23,7 @@ builder.Services.AddMessagingAppRepositories(builder.Configuration);
 
 builder.Services.AddSingleton<IActiveUserSessionServices, ActiveUserSessionServices>();
 builder.Services.AddSingleton<IActiveUserServices, ActiveUserServices>();
+builder.Services.AddSingleton<IAccountDataDeletionServices, AccountDataDeletionServices>();
 builder.Services.AddSingleton<IPublicProfileServices, PublicProfileServices>();
 builder.Services.AddSingleton<IMessageBoardServices, MessageBoardServices>();
 builder.Services.AddSingleton<IBoardMembershipServices, BoardMembershipServices>();

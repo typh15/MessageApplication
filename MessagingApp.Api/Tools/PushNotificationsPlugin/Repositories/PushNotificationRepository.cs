@@ -48,6 +48,14 @@ class PushNotificationRepository : IPushNotificationRepository
         return Task.FromResult(removedCount > 0);
     }
 
+    public Task<bool> DeleteSubscriptionsForUserAsync(string uniqueId)
+    {
+        var removedCount = subscriptions.RemoveAll(subscription =>
+            subscription.UniqueId == uniqueId);
+
+        return Task.FromResult(removedCount > 0);
+    }
+
     public Task<List<PushNotificationSubscription>> GetSubscriptionsForUsersAsync(IEnumerable<string> uniqueIds)
     {
         var uniqueIdSet = uniqueIds

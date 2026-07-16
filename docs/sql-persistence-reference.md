@@ -269,6 +269,7 @@ The SQL implementation preserves current behavior:
 - Rejects duplicate `UniqueId`.
 - Rejects duplicate auth IDs case-insensitively.
 - Looks up auth IDs case-insensitively using `NormalizedAuthId`.
+- Deletes account rows by `UniqueId` for account deletion.
 - Returns `false` instead of throwing for normal validation failures.
 
 ### Image Metadata
@@ -338,6 +339,7 @@ The SQL implementation preserves current behavior:
 - Updates `DeviceId`, `Platform`, and `UpdatedAtUtc` when the same user/token already exists.
 - Removes the same Expo push token from other users before assigning it to the current user.
 - Deletes by `(uniqueId, expoPushToken)`.
+- Deletes all subscriptions for a `uniqueId` during account deletion.
 - Returns subscriptions for a provided set of unique IDs.
 
 The important rule is token ownership. A token can move from one user to another, but `ExpoPushToken` is unique in SQL so one token cannot belong to multiple users at the same time.
@@ -368,6 +370,7 @@ The SQL implementation preserves current behavior where practical:
 - Enforces case-insensitive username uniqueness with `NormalizedUserName`.
 - Refreshes `LastActiveTime`, `Address`, and username-based lookups.
 - Removes inactive users by `LastActiveTime`.
+- Removes active-user rows by `UniqueId` during account deletion.
 - Returns active users as app-facing `ActiveUser` models, not persistence records.
 - Rehydrates `MessageBoardIds`, `RequestedMessageBoardIds`, and `InvitedMessageBoardIds` from SQL join tables.
 

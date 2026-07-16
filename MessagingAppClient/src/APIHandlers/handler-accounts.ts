@@ -61,6 +61,20 @@ export async function updateAvatarImage(avatarImageId: string): Promise<boolean>
     return await updateAccountData('avatar', { AvatarImageId: avatarImageId });
 }
 
+export async function deleteUserAccount(): Promise<boolean> {
+    const uniqueId = await getStoredUniqueId();
+    const apiUrlAddress = await apiUrl(`/user-accounts/${encodeURIComponent(uniqueId)}`);
+    const response = await fetch(apiUrlAddress, { method: 'DELETE' });
+
+    if (!response.ok) {
+        const txt = await response.text();
+        console.error('Delete account failed:', txt);
+        throw new Error('Failed to delete account');
+    }
+
+    return true;
+}
+
 async function updateAccountData(
     fieldName: 'display-name' | 'public-blurb' | 'avatar',
     body: Record<string, string>

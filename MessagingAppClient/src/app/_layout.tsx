@@ -22,6 +22,8 @@ export default function RootLayout() {
                     <Stack.Screen name="Board-Creation-Page" />
                     <Stack.Screen name="Board-Join-Requests-Page" />
                     <Stack.Screen name="Account-Page" />
+                    <Stack.Screen name="privacy" />
+                    <Stack.Screen name="account-deletion" />
                 </Stack>
             </ThemeProvider>
         </SafeAreaProvider>

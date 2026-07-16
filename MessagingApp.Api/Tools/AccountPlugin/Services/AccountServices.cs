@@ -105,6 +105,16 @@ public class AccountServices : IAccountServices
         return CreatePublicAccountDataResponse(userAccount);
     }
 
+    public Task<bool> DeleteUserAccountAsync(string uniqueId)
+    {
+        if (string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return Task.FromResult(false);
+        }
+
+        return userAccountRepository.DeleteUserAccountAsync(uniqueId);
+    }
+
     public Task<bool> UpdateDisplayNameAsync(string uniqueId, string displayName)
     {
         return userAccountRepository.UpdateDisplayName(uniqueId, displayName);

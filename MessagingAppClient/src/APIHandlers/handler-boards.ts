@@ -1,3 +1,4 @@
+import { apiFetch } from './Helpers/api-fetch';
 import { apiUrl } from './Helpers/config';
 import { getStoredUniqueId } from '@/session/session-storage';
 import type { MessageBoard } from './Helpers/types';
@@ -5,10 +6,7 @@ import type { MessageBoard } from './Helpers/types';
 export async function getMessageBoards(): Promise<MessageBoard[]> {
     const uniqueId = await getStoredUniqueId();
 
-    const apiUrlAddress = await apiUrl(`/message-boards?uniqueId=${encodeURIComponent(uniqueId)}`);
-    
-    const response = await fetch(apiUrlAddress, {
-        method: 'GET',
+    const response = await apiFetch(`/message-boards?uniqueId=${encodeURIComponent(uniqueId)}`, {
         headers: { 'Content-Type': 'application/json' },
     });
 
@@ -125,9 +123,9 @@ export async function removeFavoriteBoard(boardId: number): Promise<boolean> {
 export async function getMessageBoardData(boardId: number): Promise<MessageBoard> {
     const uniqueId = await getStoredUniqueId();
 
-    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}?uniqueId=${encodeURIComponent(uniqueId)}`);
-    
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(
+        `/message-boards/${boardId}?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch board data failed:', txt);
@@ -138,9 +136,7 @@ export async function getMessageBoardData(boardId: number): Promise<MessageBoard
 
 export async function GetAllPublicMessageBoardNames(): Promise<string[]> {
 
-    const apiUrlAddress = await apiUrl(`/public-boardnames`);
-    
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch('/public-boardnames');
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch public messageboard names failed:', txt);

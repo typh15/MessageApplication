@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import type { ImageLoadEventData } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { getImageUrl } from '@/APIHandlers/ApiHandlerHub';
@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 const MAX_IMAGE_WIDTH = 264;
 const MAX_IMAGE_HEIGHT = 220;
 const MIN_IMAGE_WIDTH = 156;
+const IMAGE_RETRY_DELAYS_MS = [750, 2000] as const;
 
 type ImageDimensions = {
     width: number;
@@ -38,6 +39,11 @@ export const MessageBox = memo(function MessageBox({
 }: MessageBoxProps) {
     const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
     const [imageDimensions, setImageDimensions] = useState<ImageDimensions | null>(null);
+    const [imageReloadKey, setImageReloadKey] = useState(0);
+    const [automaticImageRetryCount, setAutomaticImageRetryCount] = useState(0);
+    const [imageRetryScheduled, setImageRetryScheduled] = useState(false);
+    const [imageLoadFailed, setImageLoadFailed] = useState(false);
+    const imageRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const theme = useTheme();
     const styles = useMessageBoxStyles();
     const date = new Date(timestamp);
@@ -57,9 +63,23 @@ export const MessageBox = memo(function MessageBox({
 
     useEffect(() => {
         setImageDimensions(null);
+        setImageReloadKey(0);
+        setAutomaticImageRetryCount(0);
+        setImageRetryScheduled(false);
+        setImageLoadFailed(false);
+
+        if (imageRetryTimerRef.current !== null) {
+            clearTimeout(imageRetryTimerRef.current);
+            imageRetryTimerRef.current = null;
+        }
 
         if (!imageUrl || Platform.OS !== 'web' || typeof window === 'undefined') {
-            return;
+            return () => {
+                if (imageRetryTimerRef.current !== null) {
+                    clearTimeout(imageRetryTimerRef.current);
+                    imageRetryTimerRef.current = null;
+                }
+            };
         }
 
         let isActive = true;
@@ -90,10 +110,24 @@ export const MessageBox = memo(function MessageBox({
             isActive = false;
             browserImage.onload = null;
             browserImage.onerror = null;
+
+            if (imageRetryTimerRef.current !== null) {
+                clearTimeout(imageRetryTimerRef.current);
+                imageRetryTimerRef.current = null;
+            }
         };
     }, [imageUrl]);
 
     const handleImageLoad = (event: ImageLoadEventData) => {
+        if (imageRetryTimerRef.current !== null) {
+            clearTimeout(imageRetryTimerRef.current);
+            imageRetryTimerRef.current = null;
+        }
+
+        setAutomaticImageRetryCount(0);
+        setImageRetryScheduled(false);
+        setImageLoadFailed(false);
+
         const { width, height } = event.source;
 
         if (width > 0 && height > 0) {
@@ -105,6 +139,40 @@ export const MessageBox = memo(function MessageBox({
                 return { width, height };
             });
         }
+    };
+
+    const handleImageError = () => {
+        if (imageRetryTimerRef.current !== null || imageLoadFailed) {
+            return;
+        }
+
+        const retryDelayMs = IMAGE_RETRY_DELAYS_MS[automaticImageRetryCount];
+
+        if (retryDelayMs === undefined) {
+            setImageRetryScheduled(false);
+            setImageLoadFailed(true);
+            return;
+        }
+
+        setImageRetryScheduled(true);
+        imageRetryTimerRef.current = setTimeout(() => {
+            imageRetryTimerRef.current = null;
+            setAutomaticImageRetryCount((count) => count + 1);
+            setImageReloadKey((key) => key + 1);
+            setImageRetryScheduled(false);
+        }, retryDelayMs);
+    };
+
+    const handleRetryImage = () => {
+        if (imageRetryTimerRef.current !== null) {
+            clearTimeout(imageRetryTimerRef.current);
+            imageRetryTimerRef.current = null;
+        }
+
+        setAutomaticImageRetryCount(0);
+        setImageRetryScheduled(false);
+        setImageLoadFailed(false);
+        setImageReloadKey((key) => key + 1);
     };
 
     const handleOpenImageExternally = async () => {
@@ -140,28 +208,47 @@ export const MessageBox = memo(function MessageBox({
             {isImageMessage && imageUrl ? (
                 <>
                     <Pressable
-                        onPress={() => setImagePreviewVisible(true)}
+                        onPress={imageLoadFailed
+                            ? handleRetryImage
+                            : () => setImagePreviewVisible(true)}
+                        disabled={imageRetryScheduled}
                         onLongPress={handleOpenImageExternally}
                         delayLongPress={450}
-                        accessibilityRole="imagebutton"
-                        accessibilityLabel="Open picture message"
+                        accessibilityRole={imageLoadFailed ? 'button' : 'imagebutton'}
+                        accessibilityLabel={imageLoadFailed
+                            ? 'Retry loading picture message'
+                            : imageRetryScheduled
+                                ? 'Retrying picture message'
+                                : 'Open picture message'}
                         style={({ pressed }) => [
                             styles.imagePressable,
                             fittedImageSize,
                             pressed && styles.imagePressablePressed,
                         ]}
                     >
-                        <Image
-                            key={imageId}
-                            source={imageUrl}
-                            style={styles.messageImage}
-                            recyclingKey={imageId}
-                            contentFit={imageContentFit}
-                            cachePolicy="memory-disk"
-                            priority="high"
-                            onLoad={useFixedImageLayout ? undefined : handleImageLoad}
-                            accessibilityLabel={trimmedMessage || 'Picture message'}
-                        />
+                        {imageLoadFailed || imageRetryScheduled ? (
+                            <View style={styles.imageRetryFallback}>
+                                <ThemedText style={styles.imageRetryTitle}>
+                                    {imageLoadFailed ? 'Picture unavailable' : 'Retrying picture...'}
+                                </ThemedText>
+                                <ThemedText style={styles.imageRetryText}>
+                                    {imageLoadFailed ? 'Tap to retry' : 'Checking the connection'}
+                                </ThemedText>
+                            </View>
+                        ) : (
+                            <Image
+                                key={`${imageId}-${imageReloadKey}`}
+                                source={imageUrl}
+                                style={styles.messageImage}
+                                recyclingKey={`${imageId}-${imageReloadKey}`}
+                                contentFit={imageContentFit}
+                                cachePolicy="memory-disk"
+                                priority="high"
+                                onLoad={handleImageLoad}
+                                onError={handleImageError}
+                                accessibilityLabel={trimmedMessage || 'Picture message'}
+                            />
+                        )}
                     </Pressable>
 
                     <Modal
@@ -319,6 +406,29 @@ function createMessageBoxStyles(theme: AppTheme) {
 
     imagePressablePressed: {
         opacity: 0.82,
+    },
+
+    imageRetryFallback: {
+        width: "100%",
+        height: "100%",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: Spacing.three,
+        backgroundColor: theme.surfacePreview,
+    },
+
+    imageRetryTitle: {
+        color: theme.text,
+        fontSize: 14,
+        fontWeight: "700",
+        textAlign: "center",
+    },
+
+    imageRetryText: {
+        marginTop: Spacing.half,
+        color: theme.textSecondary,
+        fontSize: 13,
+        textAlign: "center",
     },
 
     messageImage: {

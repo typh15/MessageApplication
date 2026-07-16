@@ -1,3 +1,4 @@
+import { apiFetch } from './Helpers/api-fetch';
 import { apiUrl } from './Helpers/config';
 import type { PublicAccountDataResponse, PublicProfileResponse } from './Helpers/types';
 
@@ -5,8 +6,7 @@ import { getStoredUniqueId } from '@/session/session-storage';
 
 export async function getUserAccount(): Promise<PublicAccountDataResponse> {
     const uniqueId = await getStoredUniqueId();
-    const apiUrlAddress = await apiUrl(`/user-accounts/${encodeURIComponent(uniqueId)}`);
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(`/user-accounts/${encodeURIComponent(uniqueId)}`);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -24,8 +24,7 @@ export async function getPublicProfile(userName: string): Promise<PublicProfileR
         return null;
     }
 
-    const apiUrlAddress = await apiUrl(`/public-profiles/${encodeURIComponent(trimmedUserName)}`);
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(`/public-profiles/${encodeURIComponent(trimmedUserName)}`);
 
     if (response.status === 404) {
         return null;

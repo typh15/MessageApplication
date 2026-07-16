@@ -93,7 +93,8 @@ class MessageBoardRepository : IMessageBoardRepository
         DateTime serverTimestamp,
         string content,
         MessageTypeEnum messageType,
-        string? imageId)
+        string? imageId,
+        string? clientRequestId = null)
     {
         lock (messageWriteLock)
         {
@@ -103,6 +104,20 @@ class MessageBoardRepository : IMessageBoardRepository
                 return Task.FromResult(AppendMessageToBoardResult.Failure(
                     AppendMessageToBoardFailureReason.BoardNotFound,
                     $"Message board {boardid} was not found."));
+            }
+
+            if (!string.IsNullOrWhiteSpace(clientRequestId))
+            {
+                var existingMessage = messageBoard.ChatMessages.FirstOrDefault(message =>
+                    string.Equals(message.FromUserName, fromUserName, StringComparison.Ordinal) &&
+                    string.Equals(message.ClientRequestId, clientRequestId, StringComparison.Ordinal));
+
+                if (existingMessage != null)
+                {
+                    return Task.FromResult(AppendMessageToBoardResult.Success(
+                        existingMessage,
+                        wasCreated: false));
+                }
             }
 
             var messageId = messageBoard.ChatMessages.Length > 0
@@ -118,7 +133,8 @@ class MessageBoardRepository : IMessageBoardRepository
                 serverTimestamp,
                 content,
                 messageType,
-                imageId);
+                imageId,
+                clientRequestId);
 
             newChatMessage.AssignGlobalId();
             messageBoard.ChatMessages = messageBoard.ChatMessages.Append(newChatMessage).ToArray();

@@ -1,3 +1,4 @@
+import { apiFetch } from './Helpers/api-fetch';
 import { apiUrl } from './Helpers/config';
 import { getSession, storeUserSession, type Session } from '@/session/session-storage';
 import { syncPushNotificationRegistration } from '@/plugins/push-notifications';
@@ -111,10 +112,7 @@ export async function createAnonymousActiveUser(userName: string): Promise<Activ
 }
 
 export async function GetAllActiveUserNames(): Promise<string[]> {
-
-    const apiUrlAddress = await apiUrl(`/active-usernames`);
-
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch('/active-usernames');
     if (!response.ok) {
         const txt = await response.text();
         console.error('Fetch active usernames failed:', txt);
@@ -124,10 +122,9 @@ export async function GetAllActiveUserNames(): Promise<string[]> {
 }
 
 export async function validateActiveUser(uniqueId: string): Promise<boolean> {
-
-    const apiUrlAddress = await apiUrl(`/active-users/validate?uniqueId=${encodeURIComponent(uniqueId)}`);
-
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(
+        `/active-users/validate?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
 
     if (!response.ok) {
         return false;

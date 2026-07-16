@@ -170,7 +170,8 @@ class SqlMessageBoardRepository : IMessageBoardRepository
         DateTime serverTimestamp,
         string content,
         MessageTypeEnum messageType,
-        string? imageId)
+        string? imageId,
+        string? clientRequestId = null)
     {
         try
         {
@@ -188,6 +189,23 @@ class SqlMessageBoardRepository : IMessageBoardRepository
                     $"Message board {boardid} was not found.");
             }
 
+            if (!string.IsNullOrWhiteSpace(clientRequestId))
+            {
+                var existingMessage = await dbContext.ChatMessages
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(message =>
+                        message.BoardId == boardid &&
+                        message.FromUserName == fromUserName &&
+                        message.ClientRequestId == clientRequestId);
+
+                if (existingMessage != null)
+                {
+                    return AppendMessageToBoardResult.Success(
+                        CreateChatMessage(existingMessage),
+                        wasCreated: false);
+                }
+            }
+
             var maxMessageId = await dbContext.ChatMessages
                 .Where(message => message.BoardId == boardid)
                 .Select(message => (int?)message.MessageId)
@@ -202,7 +220,8 @@ class SqlMessageBoardRepository : IMessageBoardRepository
                 serverTimestamp,
                 content,
                 messageType,
-                imageId);
+                imageId,
+                clientRequestId);
 
             newChatMessage.AssignGlobalId();
 
@@ -218,7 +237,8 @@ class SqlMessageBoardRepository : IMessageBoardRepository
                 GlobalId = newChatMessage.GlobalId,
                 Hash = newChatMessage.Hash,
                 MessageType = (int)newChatMessage.MessageType,
-                ImageId = newChatMessage.ImageId
+                ImageId = newChatMessage.ImageId,
+                ClientRequestId = newChatMessage.ClientRequestId
             });
 
             messageBoard.MostRecentMessageHash = newChatMessage.Hash;
@@ -842,7 +862,8 @@ class SqlMessageBoardRepository : IMessageBoardRepository
             record.ServerTimestamp,
             record.Content,
             (MessageTypeEnum)record.MessageType,
-            record.ImageId)
+            record.ImageId,
+            record.ClientRequestId)
         {
             GlobalId = record.GlobalId,
             Hash = record.Hash

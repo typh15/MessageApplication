@@ -16,7 +16,8 @@ public interface IMessageBoardRepository
         DateTime serverTimestamp,
         string content,
         MessageTypeEnum messageType,
-        string? imageId);
+        string? imageId,
+        string? clientRequestId = null);
     Task<bool> UpdateBoardNameAsync(int boardid, string newName);
     Task<bool> DeleteMessageBoardAsync(int boardid);
     Task<bool> AddUserToBoardAsync(int boardid, ActiveUser user);

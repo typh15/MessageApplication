@@ -189,8 +189,17 @@ public sealed class MessagingAppDbContext : DbContext
             entity.Property(message => message.Content).HasMaxLength(4000).IsRequired();
             entity.Property(message => message.GlobalId).HasMaxLength(128).IsRequired();
             entity.Property(message => message.ImageId).HasMaxLength(64);
+            entity.Property(message => message.ClientRequestId).HasMaxLength(64);
 
             entity.HasIndex(message => message.GlobalId).IsUnique();
+            entity.HasIndex(message => new
+                {
+                    message.BoardId,
+                    message.FromUserName,
+                    message.ClientRequestId
+                })
+                .IsUnique()
+                .HasFilter("\"ClientRequestId\" IS NOT NULL");
 
             entity.HasOne(message => message.Board)
                 .WithMany(board => board.Messages)

@@ -7,4 +7,5 @@ public class CreateChatMessageRequest
     public string UniqueId { get; set; } = string.Empty;
     public MessageTypeEnum MessageType { get; set; } = MessageTypeEnum.text;
     public string? ImageId { get; set; }
+    public string? ClientRequestId { get; set; }
 }

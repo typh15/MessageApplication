@@ -115,6 +115,7 @@ public class MessagesController : ControllerBase
             SendMessageFailureReason.MissingImageId => BadRequest(message),
             SendMessageFailureReason.ImageNotFound => NotFound(message),
             SendMessageFailureReason.ImageOwnerMismatch => StatusCode(StatusCodes.Status403Forbidden, message),
+            SendMessageFailureReason.InvalidClientRequestId => BadRequest(message),
             SendMessageFailureReason.PersistenceFailed => StatusCode(
                 StatusCodes.Status500InternalServerError,
                 message),

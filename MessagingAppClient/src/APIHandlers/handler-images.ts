@@ -1,3 +1,4 @@
+import { apiFetch } from './Helpers/api-fetch';
 import { apiUrl, apiUrlSync } from './Helpers/config';
 import { getStoredUniqueId } from '@/session/session-storage';
 import type { ImageDataResponse, ImageUploadInput } from './Helpers/types';
@@ -75,9 +76,7 @@ export function getImageUrl(imageId: string): string {
 }
 
 export async function getImageMetadata(imageId: string): Promise<ImageDataResponse> {
-    const apiUrlAddress = await apiUrl(`/images/${encodeURIComponent(imageId)}/metadata`);
-
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(`/images/${encodeURIComponent(imageId)}/metadata`);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -90,10 +89,7 @@ export async function getImageMetadata(imageId: string): Promise<ImageDataRespon
 
 export async function getImagesForOwner(): Promise<ImageDataResponse[]> {
     const ownerUniqueId = await getStoredUniqueId();
-
-    const apiUrlAddress = await apiUrl(`/images/owners/${encodeURIComponent(ownerUniqueId)}`);
-
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(`/images/owners/${encodeURIComponent(ownerUniqueId)}`);
 
     if (!response.ok) {
         const txt = await response.text();

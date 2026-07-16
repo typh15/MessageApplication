@@ -1,5 +1,6 @@
 import Message_Class from '@/components/Models/message-class';
 
+import { apiFetch } from './Helpers/api-fetch';
 import { apiUrl } from './Helpers/config';
 import { createMessageFromServerMessage } from './Helpers/message-data-transform';
 import { getStoredUniqueId, getStoredUserName, storeUniqueId } from '@/session/session-storage';
@@ -19,6 +20,7 @@ export async function sendMessage(
     const from_user = await getStoredUserName() || 'User';
     const isodate = new Date(Date.now()).toISOString();
     const messageType = options.messageType ?? 'text';
+    const clientRequestId = createClientRequestId();
 
     const formattedMessage = {
         FromUserName: from_user,
@@ -28,16 +30,20 @@ export async function sendMessage(
         UniqueId: existingUniqueId,
         MessageType: MessageTypeValue[messageType],
         ImageId: messageType === 'image' ? options.imageId : undefined,
+        ClientRequestId: clientRequestId,
     };
 
-    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/messages`);
-    const response = await fetch(apiUrlAddress, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
+    const response = await apiFetch(
+        `/message-boards/${boardId}/messages`,
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formattedMessage),
         },
-        body: JSON.stringify(formattedMessage),
-    });
+        { retryMode: 'always' }
+    );
 
     if (!response.ok) {
         const errorText = await response.text();
@@ -81,8 +87,9 @@ export async function sendImageMessage(
 
 export async function fetchMessages(boardId: number): Promise<Message_Class[]> {
     const uniqueId = await getStoredUniqueId();
-    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/messages?uniqueId=${encodeURIComponent(uniqueId)}`);
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(
+        `/message-boards/${boardId}/messages?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
 
     if (!response.ok) {
         const txt = await response.text();
@@ -109,4 +116,15 @@ export async function deleteMessage(boardId: number, messageId: number): Promise
     }
 
     return true;
+}
+
+function createClientRequestId() {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+        return globalThis.crypto.randomUUID();
+    }
+
+    const timestamp = Date.now().toString(36);
+    const randomPartOne = Math.random().toString(36).slice(2);
+    const randomPartTwo = Math.random().toString(36).slice(2);
+    return `${timestamp}-${randomPartOne}-${randomPartTwo}`;
 }

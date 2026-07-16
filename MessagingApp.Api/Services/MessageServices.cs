@@ -55,6 +55,19 @@ public class MessageServices : IMessageServices
         string? publicImageBaseUrl = null)
     {
         var uniqueId = request.UniqueId ?? string.Empty;
+        request.ClientRequestId = string.IsNullOrWhiteSpace(request.ClientRequestId)
+            ? null
+            : request.ClientRequestId.Trim();
+
+        if (request.ClientRequestId?.Length > 64)
+        {
+            return RejectSendMessage(
+                boardId,
+                uniqueId,
+                SendMessageFailureReason.InvalidClientRequestId,
+                "The message request ID must be 64 characters or fewer.");
+        }
+
         var board = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
         var userAccount = await userAccountRepository.GetUserAccountAsync(uniqueId);
         var activeUser = await activeUserRepository.GetActiveUserByUniqueId(uniqueId);
@@ -153,10 +166,10 @@ public class MessageServices : IMessageServices
 
         request.Content ??= string.Empty;
 
-        var duplicateMessage = FindRecentDuplicateMessage(board, activeUser.UserName, request);
+        var duplicateMessage = FindDuplicateMessage(board, activeUser.UserName, request);
         if (duplicateMessage != null)
         {
-            logger.LogWarning(
+            logger.LogInformation(
                 "Duplicate send suppressed for board {BoardId}, message {MessageId}, user {UniqueId}.",
                 boardId,
                 duplicateMessage.Id,
@@ -176,11 +189,24 @@ public class MessageServices : IMessageServices
                 DateTime.UtcNow,
                 request.Content,
                 request.MessageType,
-                request.ImageId);
+                request.ImageId,
+                request.ClientRequestId);
 
             if (appendResult.Succeeded)
             {
                 var chatMessage = appendResult.Message!;
+
+                if (!appendResult.WasCreated)
+                {
+                    logger.LogInformation(
+                        "Idempotent message retry resolved for board {BoardId}, message {MessageId}, user {UniqueId}.",
+                        boardId,
+                        chatMessage.Id,
+                        uniqueId);
+
+                    return SendMessageServiceResult.Success(
+                        new SendMessageResponse(uniqueId, chatMessage));
+                }
 
                 await TrySendMessagePushNotificationAsync(
                     board,
@@ -209,14 +235,14 @@ public class MessageServices : IMessageServices
             var refreshedBoard = await messageBoardRepository.GetMessageBoardByIdAsync(boardId);
             if (refreshedBoard != null)
             {
-                var persistedDuplicate = FindRecentDuplicateMessage(
+                var persistedDuplicate = FindDuplicateMessage(
                     refreshedBoard,
                     activeUser.UserName,
                     request);
 
                 if (persistedDuplicate != null)
                 {
-                    logger.LogWarning(
+                    logger.LogInformation(
                         "Duplicate send resolved after repository add failure for board {BoardId}, message {MessageId}, user {UniqueId}.",
                         boardId,
                         persistedDuplicate.Id,
@@ -284,11 +310,24 @@ public class MessageServices : IMessageServices
         return SendMessageServiceResult.Failure(reason, message);
     }
 
-    private static ChatMessage? FindRecentDuplicateMessage(
+    private static ChatMessage? FindDuplicateMessage(
         MessageBoard board,
         string senderUserName,
         CreateChatMessageRequest request)
     {
+        if (!string.IsNullOrWhiteSpace(request.ClientRequestId))
+        {
+            return board.ChatMessages
+                .Where(message => string.Equals(
+                    message.FromUserName,
+                    senderUserName,
+                    StringComparison.Ordinal))
+                .FirstOrDefault(message => string.Equals(
+                    message.ClientRequestId,
+                    request.ClientRequestId,
+                    StringComparison.Ordinal));
+        }
+
         var duplicateWindowStart = DateTime.UtcNow.Subtract(DuplicateSendWindow);
 
         return board.ChatMessages

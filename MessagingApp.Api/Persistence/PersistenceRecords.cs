@@ -94,6 +94,7 @@ public sealed class ChatMessageRecord
     public int Hash { get; set; }
     public int MessageType { get; set; }
     public string? ImageId { get; set; }
+    public string? ClientRequestId { get; set; }
 
     public MessageBoardRecord? Board { get; set; }
 }

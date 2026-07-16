@@ -93,6 +93,7 @@ public static class SqlDataStoreRegistration
 
         if (missingTableNames.Count == 0)
         {
+            await EnsureChatMessageClientRequestIdSchemaAsync(connection);
             return;
         }
 
@@ -111,6 +112,7 @@ public static class SqlDataStoreRegistration
                 }
             }
 
+            await EnsureChatMessageClientRequestIdSchemaAsync(connection);
             return;
         }
 
@@ -125,6 +127,30 @@ public static class SqlDataStoreRegistration
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var createScript = dbContext.Database.GenerateCreateScript();
         await ExecuteSqliteScriptAsync(connection, createScript);
+    }
+
+    private static async Task EnsureChatMessageClientRequestIdSchemaAsync(
+        SqliteConnection connection)
+    {
+        var columnNames = await GetSqliteColumnNamesAsync(connection, "ChatMessages");
+
+        if (!columnNames.Contains("ClientRequestId"))
+        {
+            await ExecuteSqliteNonQueryAsync(
+                connection,
+                """
+                ALTER TABLE "ChatMessages"
+                ADD COLUMN "ClientRequestId" TEXT NULL
+                """);
+        }
+
+        await ExecuteSqliteNonQueryAsync(
+            connection,
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ChatMessages_BoardId_FromUserName_ClientRequestId"
+            ON "ChatMessages" ("BoardId", "FromUserName", "ClientRequestId")
+            WHERE "ClientRequestId" IS NOT NULL
+            """);
     }
 
     private static async Task CreateMessageBoardFavoritesTableAsync(SqliteConnection connection)
@@ -249,5 +275,22 @@ public static class SqlDataStoreRegistration
         }
 
         return tableNames;
+    }
+
+    private static async Task<HashSet<string>> GetSqliteColumnNamesAsync(
+        SqliteConnection connection,
+        string tableName)
+    {
+        var columnNames = new HashSet<string>(StringComparer.Ordinal);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info(\"{tableName.Replace("\"", "\"\"")}\");";
+
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            columnNames.Add(reader.GetString(1));
+        }
+
+        return columnNames;
     }
 }

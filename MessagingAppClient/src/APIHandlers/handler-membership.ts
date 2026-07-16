@@ -1,3 +1,4 @@
+import { apiFetch } from './Helpers/api-fetch';
 import { apiUrl } from './Helpers/config';
 import { getStoredUniqueId } from '@/session/session-storage';
 import type { BoardJoinRequest, MessageBoardInvite, PublicProfileResponse } from './Helpers/types';
@@ -110,8 +111,7 @@ export async function inviteUserToBoard(boardId: number, inviteUserName: string)
 
 export async function getUserBoardInvites(): Promise<MessageBoardInvite[]> {
     const uniqueId = await getStoredUniqueId();
-    const apiUrlAddress = await apiUrl(`/active-users/${encodeURIComponent(uniqueId)}/invites`);
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(`/active-users/${encodeURIComponent(uniqueId)}/invites`);
 
     if (!response.ok) {
         const txt = await response.text();
@@ -154,8 +154,9 @@ export async function getBoardJoinRequests(
     boardId: number
 ): Promise<BoardJoinRequest[]> {
     const memberUniqueId = await getStoredUniqueId();
-    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/requests?memberUniqueId=${encodeURIComponent(memberUniqueId)}`);
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(
+        `/message-boards/${boardId}/requests?memberUniqueId=${encodeURIComponent(memberUniqueId)}`
+    );
 
     if (!response.ok) {
         throw new Error('Failed to fetch join requests');
@@ -166,8 +167,9 @@ export async function getBoardJoinRequests(
 
 export async function getBoardMembers(boardId: number): Promise<PublicProfileResponse[]> {
     const uniqueId = await getStoredUniqueId();
-    const apiUrlAddress = await apiUrl(`/message-boards/${boardId}/members?uniqueId=${encodeURIComponent(uniqueId)}`);
-    const response = await fetch(apiUrlAddress);
+    const response = await apiFetch(
+        `/message-boards/${boardId}/members?uniqueId=${encodeURIComponent(uniqueId)}`
+    );
 
     if (!response.ok) {
         const txt = await response.text();

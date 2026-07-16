@@ -9,6 +9,7 @@ public enum SendMessageFailureReason
     MissingImageId,
     ImageNotFound,
     ImageOwnerMismatch,
+    InvalidClientRequestId,
     PersistenceFailed
 }
 

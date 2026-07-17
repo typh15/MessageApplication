@@ -29,8 +29,6 @@ import {
 const IS_WEB = Platform.OS === 'web';
 
 export default function BoardSelectionScreen() {
-    const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
-    const [joining, setJoining] = useState(false);
     const [joinBoardId, setJoinBoardId] = useState('');
     const [joinPassword, setJoinPassword] = useState('');
     const [joiningByCode, setJoiningByCode] = useState(false);
@@ -57,7 +55,10 @@ export default function BoardSelectionScreen() {
         error: boardsError,
         refresh: refreshBoards,
     } = useBoards();
-    const boards = boardsData ?? [];
+    const boards = useMemo(
+        () => (boardsData ?? []).filter((board) => board.isMember),
+        [boardsData]
+    );
     const sortedBoards = useMemo(() => sortBoardsByFavorite(boards), [boards]);
     const errorMessage = actionError || boardsError?.message || '';
     const privateChatUserNames = useMemo(
@@ -69,6 +70,11 @@ export default function BoardSelectionScreen() {
     const handleCreateBoard = () => {
         setActionsMenuVisible(false);
         router.push('/Board-Creation-Page');
+    };
+
+    const handleBrowseBoards = () => {
+        setActionsMenuVisible(false);
+        router.push('../Browse-Boards-Page');
     };
 
     const handleOpenAccount = () => {
@@ -199,27 +205,11 @@ export default function BoardSelectionScreen() {
         }
     };
 
-    const handleJoinBoard = async (boardId: number) => {
-        try {
-            setJoining(true);
-            setSelectedBoardId(boardId);
-            setActionError('');
-            await APIHandler.joinMessageBoard(boardId);
-
-            router.push({
-                pathname: '../Chat-Page',
-                params: { boardId: boardId.toString() },
-            });
-        }
-        catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to join board';
-            setActionError(errorMessage);
-            console.error('Join board error:', err);
-        }
-        finally {
-            setJoining(false);
-            setSelectedBoardId(null);
-        }
+    const handleOpenBoard = (boardId: number) => {
+        router.push({
+            pathname: '../Chat-Page',
+            params: { boardId: boardId.toString() },
+        });
     };
 
     const handleOpenBoardOptions = (board: MessageBoard) => {
@@ -432,6 +422,7 @@ export default function BoardSelectionScreen() {
                         <BoardsHeader
                             actionsMenuVisible={actionsMenuVisible}
                             onToggleActionsMenu={() => setActionsMenuVisible(!actionsMenuVisible)}
+                            onBrowseBoards={handleBrowseBoards}
                             onCreateBoard={handleCreateBoard}
                             onJoinPrivateBoard={handleOpenPrivateJoin}
                             onSearchProfiles={handleOpenProfileSearch}
@@ -446,11 +437,9 @@ export default function BoardSelectionScreen() {
                         <BoardList
                             boards={sortedBoards}
                             loading={boardsLoading}
-                            joining={joining}
-                            selectedBoardId={selectedBoardId}
                             currentUserName={session?.userName}
                             privateChatProfilesByUserName={privateChatProfilesByUserName}
-                            onJoinBoard={handleJoinBoard}
+                            onOpenBoard={handleOpenBoard}
                             onOpenBoardOptions={handleOpenBoardOptions}
                         />
                     </ThemedView>
@@ -502,6 +491,7 @@ export default function BoardSelectionScreen() {
 type BoardsHeaderProps = {
     actionsMenuVisible: boolean;
     onToggleActionsMenu: () => void;
+    onBrowseBoards: () => void;
     onCreateBoard: () => void;
     onJoinPrivateBoard: () => void;
     onSearchProfiles: () => void;
@@ -512,6 +502,7 @@ type BoardsHeaderProps = {
 function BoardsHeader({
     actionsMenuVisible,
     onToggleActionsMenu,
+    onBrowseBoards,
     onCreateBoard,
     onJoinPrivateBoard,
     onSearchProfiles,
@@ -548,6 +539,7 @@ function BoardsHeader({
 
                     {actionsMenuVisible ? (
                         <BoardActionsMenu
+                            onBrowseBoards={onBrowseBoards}
                             onCreateBoard={onCreateBoard}
                             onJoinPrivateBoard={onJoinPrivateBoard}
                             onSearchProfiles={onSearchProfiles}
@@ -562,6 +554,7 @@ function BoardsHeader({
 }
 
 type BoardActionsMenuProps = {
+    onBrowseBoards: () => void;
     onCreateBoard: () => void;
     onJoinPrivateBoard: () => void;
     onSearchProfiles: () => void;
@@ -570,6 +563,7 @@ type BoardActionsMenuProps = {
 };
 
 function BoardActionsMenu({
+    onBrowseBoards,
     onCreateBoard,
     onJoinPrivateBoard,
     onSearchProfiles,
@@ -580,6 +574,7 @@ function BoardActionsMenu({
 
     return (
         <ThemedView style={styles.actionMenu}>
+            <ActionMenuItem label="Browse Boards" onPress={onBrowseBoards} />
             <ActionMenuItem label="Create board" onPress={onCreateBoard} />
             <ActionMenuItem label="Join private board" onPress={onJoinPrivateBoard} />
             <ActionMenuItem label="Search user profiles" onPress={onSearchProfiles} />
@@ -972,22 +967,18 @@ function ProfileResultCard({
 type BoardListProps = {
     boards: MessageBoard[];
     loading: boolean;
-    joining: boolean;
-    selectedBoardId: number | null;
     currentUserName?: string | null;
     privateChatProfilesByUserName: PublicProfileByUserName;
-    onJoinBoard: (boardId: number) => void;
+    onOpenBoard: (boardId: number) => void;
     onOpenBoardOptions: (board: MessageBoard) => void;
 };
 
 function BoardList({
     boards,
     loading,
-    joining,
-    selectedBoardId,
     currentUserName,
     privateChatProfilesByUserName,
-    onJoinBoard,
+    onOpenBoard,
     onOpenBoardOptions,
 }: BoardListProps) {
     const styles = useBoardSelectionStyles();
@@ -996,7 +987,7 @@ function BoardList({
         <ThemedView style={styles.boardSection}>
             <ThemedView style={styles.boardSectionHeader}>
                 <ThemedText type="subtitle" style={styles.sectionTitle}>
-                    Available boards
+                    Your boards
                 </ThemedText>
                 <ThemedText style={styles.sectionSubtitle}>
                     {boards.length === 1 ? '1 board' : `${boards.length} boards`}
@@ -1006,18 +997,16 @@ function BoardList({
             {loading && boards.length === 0 ? (
                 <EmptyBoardsState message="Loading boards..." />
             ) : boards.length === 0 ? (
-                <EmptyBoardsState message="No boards available" />
+                <EmptyBoardsState message="You have not joined any boards yet" />
             ) : (
                 <ThemedView style={styles.boardsList}>
                     {boards.map((board) => (
                         <BoardRow
                             key={board.boardId}
                             board={board}
-                            joining={joining}
-                            selectedBoardId={selectedBoardId}
                             currentUserName={currentUserName}
                             privateChatProfilesByUserName={privateChatProfilesByUserName}
-                            onJoinBoard={onJoinBoard}
+                            onOpenBoard={onOpenBoard}
                             onOpenBoardOptions={onOpenBoardOptions}
                         />
                     ))}
@@ -1029,26 +1018,21 @@ function BoardList({
 
 type BoardRowProps = {
     board: MessageBoard;
-    joining: boolean;
-    selectedBoardId: number | null;
     currentUserName?: string | null;
     privateChatProfilesByUserName: PublicProfileByUserName;
-    onJoinBoard: (boardId: number) => void;
+    onOpenBoard: (boardId: number) => void;
     onOpenBoardOptions: (board: MessageBoard) => void;
 };
 
 function BoardRow({
     board,
-    joining,
-    selectedBoardId,
     currentUserName,
     privateChatProfilesByUserName,
-    onJoinBoard,
+    onOpenBoard,
     onOpenBoardOptions,
 }: BoardRowProps) {
     const theme = useTheme();
     const styles = useBoardSelectionStyles();
-    const isJoiningBoard = joining && selectedBoardId === board.boardId;
     const privateChatUserName = getOtherPrivateUserChatUserName(board.boardName, currentUserName);
     const privateChatProfile = privateChatUserName
         ? privateChatProfilesByUserName[getProfileCacheKey(privateChatUserName)]
@@ -1098,13 +1082,11 @@ function BoardRow({
             <ThemedView style={styles.boardActions}>
                 <Pressable
                     onPress={() => onOpenBoardOptions(board)}
-                    disabled={joining}
                     accessibilityRole="button"
                     accessibilityLabel={`Open options for ${displayBoardName}`}
                     style={({ pressed }) => [
                         styles.boardOptionsButton,
                         pressed && styles.actionMenuItemPressed,
-                        joining && styles.disabledControl,
                     ]}
                 >
                     <SymbolView
@@ -1117,9 +1099,8 @@ function BoardRow({
 
                 <Button
                     showText={true}
-                    buttonText={isJoiningBoard ? 'Joining...' : 'Join'}
-                    onPress={() => onJoinBoard(board.boardId)}
-                    disabled={joining}
+                    buttonText="Open"
+                    onPress={() => onOpenBoard(board.boardId)}
                     style={styles.joinButton}
                     textStyle={styles.buttonText}
                     backgroundColor={theme.actionPrimary}

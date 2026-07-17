@@ -36,7 +36,8 @@ class MessageBoardRepository : IMessageBoardRepository
             boardName,
             visibleToPublic,
             passwordProtected,
-            newUniqueBoardId
+            newUniqueBoardId,
+            isMember: true
         );
 
 

@@ -6,6 +6,7 @@ public class MessageBoardDataResponse
     public bool PasswordProtected { get; set; }
     public string? UniqueBoardId { get; set; }
     public bool IsFavorite { get; set; }
+    public bool IsMember { get; set; }
 
     public MessageBoardDataResponse(
         int boardId,
@@ -13,7 +14,8 @@ public class MessageBoardDataResponse
         bool visibleToPublic,
         bool passwordProtected,
         string? uniqueBoardId = "",
-        bool isFavorite = false)
+        bool isFavorite = false,
+        bool isMember = false)
     {
         BoardId = boardId;
         BoardName = boardName;
@@ -21,5 +23,6 @@ public class MessageBoardDataResponse
         PasswordProtected = passwordProtected;
         UniqueBoardId = uniqueBoardId;
         IsFavorite = isFavorite;
+        IsMember = isMember;
     }
 }

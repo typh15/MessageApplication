@@ -21,26 +21,19 @@ public class MessageBoardServices : IMessageBoardServices
 
         foreach (var board in boards)
         {
-            board.IsFavorite = activeUser?.FavoriteMessageBoardIds.Contains(board.BoardId) == true;
+            var isFavorite = activeUser?.FavoriteMessageBoardIds.Contains(board.BoardId) == true;
+            var isMember = activeUser?.MessageBoardIds.Contains(board.BoardId) == true;
 
-            if (board.VisibleToPublic)
+            if (board.VisibleToPublic || isMember)
             {
-                visibleBoards.Add(board);
-                continue;
-            }
-
-            if (activeUser == null)
-            {
-                continue;
-            }
-
-            var userIsInBoard = await messageBoardRepository.CheckUserInBoardAsync(
-                board.BoardId,
-                activeUser);
-
-            if (userIsInBoard)
-            {
-                visibleBoards.Add(board);
+                visibleBoards.Add(new MessageBoardDataResponse(
+                    board.BoardId,
+                    board.BoardName,
+                    board.VisibleToPublic,
+                    board.PasswordProtected,
+                    board.UniqueBoardId,
+                    isFavorite,
+                    isMember));
             }
         }
 
@@ -87,6 +80,7 @@ public class MessageBoardServices : IMessageBoardServices
         if (boardData != null)
         {
             boardData.IsFavorite = activeUser.FavoriteMessageBoardIds.Contains(boardId);
+            boardData.IsMember = true;
         }
 
         return boardData;

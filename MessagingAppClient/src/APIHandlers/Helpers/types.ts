@@ -7,6 +7,7 @@ export interface MessageBoard {
     passwordProtected: boolean;
     uniqueBoardId?: string;
     isFavorite?: boolean;
+    isMember: boolean;
     userRequests?: Array<{ userName: string; uniqueId?: string; address?: string }>;
 }
 

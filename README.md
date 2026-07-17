@@ -398,7 +398,9 @@ Board responses include:
   "boardName": "General",
   "visibleToPublic": true,
   "passwordProtected": false,
-  "uniqueBoardId": "ABC12345"
+  "uniqueBoardId": "ABC12345",
+  "isFavorite": false,
+  "isMember": true
 }
 ```
 

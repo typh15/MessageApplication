@@ -89,7 +89,8 @@ class SqlMessageBoardRepository : IMessageBoardRepository
                 boardName,
                 visibleToPublic,
                 passwordProtected,
-                newUniqueBoardId);
+                newUniqueBoardId,
+                isMember: true);
         }
         catch (DbUpdateException)
         {
